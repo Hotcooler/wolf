@@ -30,7 +30,7 @@ struct WaylandDisplayReady {
 };
 
 void start_video_producer(std::size_t session_id,
-                          const std::string & render_node,
+                          const std::string &render_node,
                           const wolf::core::virtual_display::DisplayMode &display_mode,
                           std::shared_ptr<boost::promise<WaylandDisplayReady>> on_ready,
                           std::shared_ptr<events::EventBusType> event_bus);
