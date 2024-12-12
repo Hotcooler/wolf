@@ -27,23 +27,6 @@ void RunChildSession::run(std::size_t session_id,
   /* inherit the wayland connection, needed in order to advertise some devices (ex: PS5 trackpad) */
   if (auto wl = *parent_session->wayland_display->load()) {
     child_session->wayland_display = parent_session->wayland_display;
-
-    /* Add mouse and keyboards to our wayland display */
-    if (child_session->mouse->has_value()) {
-      if (auto mouse = std::get_if<input::Mouse>(&child_session->mouse->value())) {
-        for (auto path : mouse->get_nodes()) {
-          add_input_device(*wl, path);
-        }
-      }
-    }
-
-    if (child_session->keyboard->has_value()) {
-      if (auto kb = std::get_if<input::Keyboard>(&child_session->keyboard->value())) {
-        for (auto path : kb->get_nodes()) {
-          add_input_device(*wl, path);
-        }
-      }
-    }
   }
 
   /* Keep a history of plugged devices so that we can clean up when over */

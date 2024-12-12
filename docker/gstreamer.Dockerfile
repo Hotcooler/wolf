@@ -23,7 +23,7 @@ Depends: libc6, libcap2, libcap2-bin, libdw1, libglib2.0-0, libunwind8,
           zlib1g, libdrm2, libva2, libmfx1, libpulse0, libxdamage1, libx265-209, libopus0,
           libegl1, libgl1, libgles2, libudev1, libva-drm2, libva-wayland2, libva-x11-2, libva2,
           libwayland-client0, libx11-6, libxrandr2, libvpl2, libzxing3, libopenexr-3-1-30, librsvg2-2, libwebp7,
-          libcairo2, libcairo-gobject2, libjpeg8, libopenjp2-7, liblcms2-2, libzbar0, libaom3
+          libcairo2, libcairo-gobject2, libjpeg8, libopenjp2-7, liblcms2-2, libzbar0, libaom3, libsoup-2.4-1
 Provides: gstreamer, libgstreamer1.0-0
 Description: Manually built from git
 EOT
@@ -39,7 +39,7 @@ RUN <<_GSTREAMER_INSTALL
         libmfx-dev libvpl-dev libmfx-tools libunwind8 libcap2-bin \
         libx11-dev libxfixes-dev libxdamage-dev libwayland-dev libpulse-dev libglib2.0-dev \
         libopenjp2-7-dev liblcms2-dev libcairo2-dev libcairo-gobject2 libwebp7 librsvg2-dev libaom-dev \
-        libharfbuzz-dev libpango1.0-dev
+        libharfbuzz-dev libpango1.0-dev libsoup-2.4-1
         "
     apt-get update -y
     apt-get install -y --no-install-recommends $DEV_PACKAGES

@@ -201,7 +201,7 @@ jobs:
                 -DCATCH_DEVELOPMENT_BUILD=ON \
                 -DTEST_VIRTUAL_INPUT=OFF \
                 -DTEST_DOCKER=OFF \
-                -DLINK_RUST_WAYLAND=ON \
+                -DLINK_RUST_WAYLAND=OFF \
                 -DTEST_RUST_WAYLAND=OFF \
                 -DTEST_NVIDIA=OFF \
                 -DTEST_SDL=OFF \

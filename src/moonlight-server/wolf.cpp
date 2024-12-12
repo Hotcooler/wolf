@@ -183,29 +183,20 @@ auto setup_sessions_handlers(const immer::box<state::AppState> &app_state,
         plugged_devices_queue->update(
             [=](const session_devices map) { return map.set(session->session_id, devices_q); });
 
+        std::shared_ptr<boost::promise<streaming::WaylandDisplayReady>> on_ready =
+            std::make_shared<boost::promise<streaming::WaylandDisplayReady>>();
+
         if (session->app->start_virtual_compositor) {
           logs::log(logs::debug, "[STREAM_SESSION] Create wayland compositor");
 
-          auto render_node = session->app->render_node;
-          auto wl_state = virtual_display::create_wayland_display({}, render_node);
-          virtual_display::set_resolution(
-              *wl_state,
-              {session->display_mode.width, session->display_mode.height, session->display_mode.refreshRate});
-
-          // Set the wayland display
-          session->wayland_display->store(wl_state);
-
-          // Set virtual devices
-          session->mouse->emplace(virtual_display::WaylandMouse(wl_state));
-          session->keyboard->emplace(virtual_display::WaylandKeyboard(wl_state));
-
           // Start Gstreamer producer pipeline
-          std::thread([session, wl_state]() {
+          std::thread([session, on_ready]() {
             streaming::start_video_producer(session->session_id,
-                                            wl_state,
+                                            session->app->render_node,
                                             {.width = session->display_mode.width,
                                              .height = session->display_mode.height,
                                              .refreshRate = session->display_mode.refreshRate},
+                                            on_ready,
                                             session->event_bus);
           }).detach();
         } else {
@@ -233,6 +224,7 @@ auto setup_sessions_handlers(const immer::box<state::AppState> &app_state,
                                         .udev_hw_db_entries = keyboard_ptr.get_udev_hw_db_entries()}));
             session->keyboard->emplace(std::move(keyboard_ptr));
           }
+          on_ready->set_value({});
         }
 
         /* Create audio virtual sink */
@@ -256,10 +248,23 @@ auto setup_sessions_handlers(const immer::box<state::AppState> &app_state,
           }).detach();
         }
 
-        session->event_bus->fire_event(immer::box<events::StartRunner>(
-            events::StartRunner{.stop_stream_when_over = true,
-                                .runner = session->app->runner,
-                                .stream_session = std::make_shared<events::StreamSession>(*session)}));
+        // TODO: timeout? What if the wayland display is never ready?
+        auto w_display_ready = on_ready->get_future().then([session](auto fut) {
+          streaming::WaylandDisplayReady ready = fut.get();
+
+          auto wl_state = virtual_display::create_wayland_display(ready.wayland_plugin, ready.wayland_socket_name);
+          // Set the wayland display
+          session->wayland_display->store(wl_state);
+
+          // Set virtual devices
+          session->mouse->emplace(virtual_display::WaylandMouse(wl_state));
+          session->keyboard->emplace(virtual_display::WaylandKeyboard(wl_state));
+
+          session->event_bus->fire_event(immer::box<events::StartRunner>(
+              events::StartRunner{.stop_stream_when_over = true,
+                                  .runner = session->app->runner,
+                                  .stream_session = std::make_shared<events::StreamSession>(*session)}));
+        });
       }));
 
   /* Start runner */
@@ -286,28 +291,15 @@ auto setup_sessions_handlers(const immer::box<state::AppState> &app_state,
           full_env.set("PULSE_SERVER", audio_server_name);
           mounted_paths.push_back({audio_server_name, audio_server_name});
 
-          if (session->app->start_virtual_compositor) {
-            auto wl_state = *session->wayland_display->load();
-            full_env.set("GAMESCOPE_WIDTH", std::to_string(session->display_mode.width));
-            full_env.set("GAMESCOPE_HEIGHT", std::to_string(session->display_mode.height));
-            full_env.set("GAMESCOPE_REFRESH", std::to_string(session->display_mode.refreshRate));
+          full_env.set("GAMESCOPE_WIDTH", std::to_string(session->display_mode.width));
+          full_env.set("GAMESCOPE_HEIGHT", std::to_string(session->display_mode.height));
+          full_env.set("GAMESCOPE_REFRESH", std::to_string(session->display_mode.refreshRate));
 
-            /* Setup additional devices paths */
-            auto graphic_devices = virtual_display::get_devices(*wl_state);
-            std::copy(graphic_devices.begin(), graphic_devices.end(), std::back_inserter(all_devices));
-
-            /* Setup additional env paths */
-            for (const auto &env : virtual_display::get_env(*wl_state)) {
-              auto split = utils::split(env, '=');
-
-              if (split[0] == "WAYLAND_DISPLAY") {
-                auto socket_path = fmt::format("{}/{}", runtime_dir, split[1]);
-                logs::log(logs::debug, "WAYLAND_DISPLAY={}", socket_path);
-                mounted_paths.push_back({socket_path, socket_path});
-              }
-
-              full_env.set(utils::to_string(split[0]), utils::to_string(split[1]));
-            }
+          if (auto w_display = run_session->stream_session->wayland_display.get()) {
+            auto socket_name = virtual_display::get_wayland_socket_name(*w_display->load().get());
+            auto wayland_socket = std::filesystem::path(runtime_dir) / socket_name;
+            mounted_paths.push_back({wayland_socket, wayland_socket});
+            full_env.set("WAYLAND_DISPLAY", socket_name);
           }
 
           /* Adding custom state folder */
