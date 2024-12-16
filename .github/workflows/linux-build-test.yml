@@ -68,7 +68,6 @@ jobs:
                 -DCMAKE_CXX_EXTENSIONS=OFF \
                 -DTEST_VIRTUAL_INPUT=OFF \
                 -DTEST_DOCKER=ON \
-                -DTEST_RUST_WAYLAND=ON \
                 -DTEST_NVIDIA=OFF \
                 -DTEST_EXCEPTIONS=OFF \
                 -DTEST_UHID=OFF \
@@ -202,7 +201,6 @@ jobs:
                 -DTEST_VIRTUAL_INPUT=OFF \
                 -DTEST_DOCKER=OFF \
                 -DLINK_RUST_WAYLAND=OFF \
-                -DTEST_RUST_WAYLAND=OFF \
                 -DTEST_NVIDIA=OFF \
                 -DTEST_SDL=OFF \
                 -G Ninja
