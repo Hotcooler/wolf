@@ -13,7 +13,8 @@ RUN apt-get update -y && \
     pkg-config \
     ccache \
     git \
-    clang \
+    clang-16 \
+    build-essential \
     libboost-thread-dev libboost-locale-dev libboost-filesystem-dev libboost-log-dev libboost-stacktrace-dev libboost-container-dev \
     libwayland-dev libwayland-server0 libinput-dev libxkbcommon-dev libgbm-dev \
     libcurl4-openssl-dev \

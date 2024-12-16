@@ -14,9 +14,12 @@ on:
 
 jobs:
   test-arm:
+    # Avoid workflows to run twice for PRs (https://github.com/orgs/community/discussions/57827)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     timeout-minutes: 30
     runs-on: [ self-hosted, ARM64 ] # self-hosted, using Oracle free tier instance
     steps:
+      - uses: asilbek99/action-cleanup@v1
       - uses: actions/checkout@v4
 
       - name: Prepare environment
@@ -96,6 +99,7 @@ jobs:
 
   # First build the common dependencies: Rust-based libgstwaylanddisplay
   build-gst-wayland:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-24.04
     steps:
       - name: Prepare environment
@@ -130,6 +134,7 @@ jobs:
           if-no-files-found: error
 
   test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-24.04
     needs: build-gst-wayland
     strategy:
