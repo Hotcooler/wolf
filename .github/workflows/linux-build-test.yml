@@ -19,8 +19,6 @@ jobs:
     timeout-minutes: 30
     runs-on: [ self-hosted, ARM64 ] # self-hosted, using Oracle free tier instance
     steps:
-      - name: cleanup workspace
-        run: rm -rf ${{runner.workspace}}/*
       - uses: actions/checkout@v4
 
       - name: Prepare environment
