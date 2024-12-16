@@ -51,11 +51,13 @@ void start_video_producer(std::size_t session_id,
                           const virtual_display::DisplayMode &display_mode,
                           std::shared_ptr<boost::promise<WaylandDisplayReady>> on_ready,
                           std::shared_ptr<events::EventBusType> event_bus) {
+  bool use_zero_copy = utils::get_env("WOLF_USE_ZERO_COPY") != nullptr;
   auto pipeline = fmt::format(
       "waylanddisplaysrc name=wolf_wayland_source render_node={render_node} ! "
-      "video/x-raw, width={width}, height={height}, framerate={fps}/1 ! "                      // TODO: DMA-BUF
+      "{buffer_format}, width={width}, height={height}, framerate={fps}/1 ! "                  //
       "queue leaky=downstream max-size-buffers=1 ! "                                                                               //
       "interpipesink name={session_id}_video sync=true async=false max-buffers=1", //
+      fmt::arg("buffer_format", use_zero_copy ? "video/x-raw(memory:DMABuf)" : "video/x-raw"),
       fmt::arg("render_node", render_node),
       fmt::arg("session_id", session_id),
       fmt::arg("width", display_mode.width),

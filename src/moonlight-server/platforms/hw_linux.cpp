@@ -133,6 +133,11 @@ std::vector<std::string> linked_devices(std::string_view gpu) {
         found_devices.emplace_back("/dev/nvidiactl");
       }
     }
+
+    std::string render_node = device->nodes[DRM_NODE_RENDER];
+    if (render_node != primary_node) {
+      found_devices.emplace_back(render_node);
+    }
   } else {
     logs::log(logs::warning, "{} doesn't have a primary node! Available nodes: {}", gpu, device->available_nodes);
   }
