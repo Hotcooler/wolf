@@ -88,6 +88,12 @@ RUN apt-get update -y && \
     libglvnd0 libgl1 libglx0 libegl1 libgles2 xwayland \
     && rm -rf /var/lib/apt/lists/*
 
+# Wolf UI runtime dependencies (.NET)
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    dotnet-sdk-8.0 \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV GST_PLUGIN_PATH=/usr/local/lib/x86_64-linux-gnu/gstreamer-1.0/
 # Copying out our custom compositor from the build stage
 COPY --from=wolf-builder /usr/local/lib/x86_64-linux-gnu/gstreamer-1.0/* $GST_PLUGIN_PATH
@@ -101,8 +107,10 @@ RUN mkdir -p $WOLF_CFG_FOLDER
 
 COPY --from=wolf-builder /wolf/wolf /wolf/wolf
 COPY --from=wolf-builder /wolf/fake-udev /wolf/fake-udev
+COPY --from=ghcr.io/games-on-whales/wolf-ui:alpha /usr/local/bin/wolf-ui /usr/local/bin/wolf-ui
 
 ENV XDG_RUNTIME_DIR=/tmp/sockets \
+    WOLF_UI_BIN=/usr/local/bin/wolf-ui \
     WOLF_LOG_LEVEL=INFO \
     WOLF_CFG_FILE=$WOLF_CFG_FOLDER/config.toml \
     WOLF_PRIVATE_KEY_FILE=$WOLF_CFG_FOLDER/key.pem \

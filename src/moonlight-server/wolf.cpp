@@ -256,10 +256,18 @@ auto setup_sessions_handlers(const immer::box<state::AppState> &app_state,
           }).detach();
         }
 
-        session->event_bus->fire_event(immer::box<events::StartRunner>(
-            events::StartRunner{.stop_stream_when_over = true,
-                                .runner = session->app->runner,
-                                .stream_session = std::make_shared<events::StreamSession>(*session)}));
+        if (auto wolf_ui_binary = utils::get_env("WOLF_UI_BIN")) {
+          process::RunProcess run_proc(session->event_bus, wolf_ui_binary);
+          session->event_bus->fire_event(immer::box<events::StartRunner>(
+              events::StartRunner{.stop_stream_when_over = true,
+                                  .runner = std::make_shared<process::RunProcess>(run_proc),
+                                  .stream_session = std::make_shared<events::StreamSession>(*session)}));
+        } else {
+          session->event_bus->fire_event(immer::box<events::StartRunner>(
+              events::StartRunner{.stop_stream_when_over = true,
+                                  .runner = session->app->runner,
+                                  .stream_session = std::make_shared<events::StreamSession>(*session)}));
+        }
       }));
 
   /* Start runner */
