@@ -286,6 +286,7 @@ auto setup_sessions_handlers(const immer::box<state::AppState> &app_state,
           /* Setup environment paths */
           immer::map_transient<std::string, std::string> full_env;
           full_env.set("XDG_RUNTIME_DIR", runtime_dir);
+          full_env.set("WOLF_SESSION_ID", std::to_string(session->session_id));
 
           auto pulse_sink_name = fmt::format("virtual_sink_{}", session->session_id);
           auto audio_server_name = audio_server ? audio::get_server_name(audio_server->server) : "";
