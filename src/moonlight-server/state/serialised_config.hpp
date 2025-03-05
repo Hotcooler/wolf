@@ -112,12 +112,20 @@ struct BaseApp {
       AppCMD{}; // We have to provide a default or rfl::DefaultIfMissing will fail
 };
 
+struct Profile {
+  std::string id;
+  std::optional<std::string> name;
+  std::optional<std::string> icon_png_path;
+
+  std::vector<BaseApp> apps;
+};
+
 struct WolfConfig {
   std::string hostname;
   std::string uuid;
-  int config_version = 4;
+  int config_version = 5;
   std::vector<PairedClient> paired_clients;
-  std::vector<BaseApp> apps;
+  std::vector<Profile> profiles;
   GstreamerSettings gstreamer;
 };
 

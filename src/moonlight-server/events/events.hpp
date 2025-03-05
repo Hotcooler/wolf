@@ -73,6 +73,20 @@ struct App {
   std::shared_ptr<Runner> runner;
 };
 
+struct Profile {
+  const std::string id;
+  const std::string name;
+  const std::string icon_png_path;
+
+  std::shared_ptr<immer::atom<immer::vector<immer::box<App>>>> apps;
+};
+
+/**
+ * There's going to be one special profile
+ * which is going to be the one that holds the apps that will be shown in the Moonlight UI
+ */
+constexpr std::string_view MOONLIGHT_PROFILE_ID = "moonlight-profile-id";
+
 using MouseTypes = std::variant<input::Mouse, virtual_display::WaylandMouse>;
 using KeyboardTypes = std::variant<input::Keyboard, virtual_display::WaylandKeyboard>;
 using JoypadTypes = std::variant<input::XboxOneJoypad, input::SwitchJoypad, input::PS5Joypad>;

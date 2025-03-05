@@ -237,7 +237,10 @@ TEST_CASE("APPs APIs", "[API]") {
   REQUIRE(apps2.success);
   REQUIRE(apps2.apps.size() == 3);
   REQUIRE(apps2.apps[2].title == "Test app");
-  REQUIRE(app_state->config->apps->load()->at(2)->base.title == "Test app");
+  auto moonlight_profile = state::get_moonlight_profile(config);
+  REQUIRE(moonlight_profile);
+  immer::vector<immer::box<events::App>> wolf_apps = moonlight_profile.value()->apps->load();
+  REQUIRE(wolf_apps.at(2)->base.title == "Test app");
 
   // Test that we can remove an app
   auto app_delete = AppDeleteRequest{.id = "test"};
@@ -282,7 +285,7 @@ TEST_CASE("Sessions APIs", "[API]") {
 
   // Test that we can add a session
   auto session = rfl::Reflector<wolf::core::events::StreamSession>::ReflType{
-      .app_id = "1",                       // test cfg file
+      .app_id = "304556286",               // test cfg file
       .client_id = "10594003729173467913", // test cfg file
       .client_ip = "127.0.0.1"};
   response = req(curl.get(), HTTPMethod::POST, "http://localhost/api/v1/sessions/add", rfl::json::write(session));

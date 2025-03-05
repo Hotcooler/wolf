@@ -81,8 +81,14 @@ void UnixSocketServer::endpoint_UnpairClient(const HTTPRequest &req, std::shared
 
 void UnixSocketServer::endpoint_Apps(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket) {
   auto res = AppListResponse{.success = true};
-  auto apps = state_->app_state->config->apps->load();
-  for (const auto &app : apps.get()) {
+  auto moonlight_profile = state::get_moonlight_profile(state_->app_state->config);
+  if (!moonlight_profile) {
+    send_http(socket, 500, rfl::json::write(GenericErrorResponse{.error = "Moonlight profile not found"}));
+    return;
+  }
+  std::shared_ptr<immer::atom<immer::vector<immer::box<events::App>>>> apps = moonlight_profile.value()->apps;
+  immer::vector<immer::box<events::App>> app_list = apps->load();
+  for (const immer::box<events::App> &app : app_list) {
     res.apps.push_back(rfl::Reflector<events::App>::from(app));
   }
   send_http(socket, 200, rfl::json::write(res));
@@ -91,7 +97,13 @@ void UnixSocketServer::endpoint_Apps(const HTTPRequest &req, std::shared_ptr<Uni
 void UnixSocketServer::endpoint_AddApp(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket) {
   auto app = rfl::json::read<rfl::Reflector<wolf::core::events::App>::ReflType>(req.body);
   if (app) {
-    state_->app_state->config->apps->update([app = app.value(), this](auto &apps) {
+    auto moonlight_profile = state::get_moonlight_profile(state_->app_state->config);
+    if (!moonlight_profile) {
+      send_http(socket, 500, rfl::json::write(GenericErrorResponse{.error = "Moonlight profile not found"}));
+      return;
+    }
+
+    moonlight_profile.value()->apps->update([app = app.value(), this](auto &apps) {
       auto runner =
           state::get_runner(app.runner, this->state_->app_state->event_bus, this->state_->app_state->running_sessions);
       return apps.push_back(events::App{
@@ -118,7 +130,13 @@ void UnixSocketServer::endpoint_AddApp(const HTTPRequest &req, std::shared_ptr<U
 void UnixSocketServer::endpoint_RemoveApp(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket) {
   auto app = rfl::json::read<AppDeleteRequest>(req.body);
   if (app) {
-    state_->app_state->config->apps->update([app = app.value()](auto &apps) {
+    auto moonlight_profile = state::get_moonlight_profile(state_->app_state->config);
+    if (!moonlight_profile) {
+      send_http(socket, 500, rfl::json::write(GenericErrorResponse{.error = "Moonlight profile not found"}));
+      return;
+    }
+
+    moonlight_profile.value()->apps->update([app = app.value()](auto &apps) {
       return apps |                                                                                             //
              ranges::views::filter([&app](const immer::box<events::App> &a) { return a->base.id != app.id; }) | //
              ranges::to<immer::vector<immer::box<events::App>>>();
@@ -145,7 +163,7 @@ void UnixSocketServer::endpoint_StreamSessionAdd(const HTTPRequest &req, std::sh
   auto session = rfl::json::read<rfl::Reflector<wolf::core::events::StreamSession>::ReflType>(req.body);
   if (session) {
     auto ss = session.value();
-    auto app = state::get_app_by_id(this->state_->app_state->config, ss.app_id);
+    auto app = state::get_moonlight_app_by_id(this->state_->app_state->config, ss.app_id);
     if (!app) {
       logs::log(logs::warning, "[API] Invalid app_id: {}", ss.app_id);
       auto res = GenericErrorResponse{.error = "Invalid app_id"};

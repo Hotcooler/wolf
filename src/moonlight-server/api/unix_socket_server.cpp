@@ -94,20 +94,22 @@ UnixSocketServer::UnixSocketServer(boost::asio::io_context &io_context,
    * Apps API
    */
 
-  state_->http.add(HTTPMethod::GET,
-                   "/api/v1/apps",
-                   {
-                       .summary = "Get all apps",
-                       .description = "This endpoint returns a list of all apps.",
-                       .response_description = {{200, {.json_schema = rfl::json::to_schema<AppListResponse>()}}},
-                       .handler = [this](auto req, auto socket) { endpoint_Apps(req, socket); },
-                   });
+  state_->http.add(
+      HTTPMethod::GET,
+      "/api/v1/apps",
+      {
+          .summary = "Get all Moonlight apps",
+          .description = "This endpoint returns a list of all apps that will be shown in the Moonlight client.",
+          .response_description = {{200, {.json_schema = rfl::json::to_schema<AppListResponse>()}},
+                                   {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
+          .handler = [this](auto req, auto socket) { endpoint_Apps(req, socket); },
+      });
 
   state_->http.add(
       HTTPMethod::POST,
       "/api/v1/apps/add",
       {
-          .summary = "Add an app",
+          .summary = "Add a Moonlight app",
           .request_description =
               APIDescription{.json_schema = rfl::json::to_schema<rfl::Reflector<wolf::core::events::App>::ReflType>()},
           .response_description = {{200, {.json_schema = rfl::json::to_schema<GenericSuccessResponse>()}},
@@ -117,7 +119,7 @@ UnixSocketServer::UnixSocketServer(boost::asio::io_context &io_context,
 
   state_->http.add(HTTPMethod::POST,
                    "/api/v1/apps/delete",
-                   {.summary = "Remove an app",
+                   {.summary = "Remove a Moonlight app",
                     .request_description = APIDescription{.json_schema = rfl::json::to_schema<AppDeleteRequest>()},
                     .response_description = {{200, {.json_schema = rfl::json::to_schema<GenericSuccessResponse>()}},
                                              {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},

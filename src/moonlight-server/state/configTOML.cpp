@@ -7,7 +7,6 @@
 #include <range/v3/view.hpp>
 #include <rfl/toml.hpp>
 #include <state/config.hpp>
-#include <utility>
 
 namespace state {
 
@@ -95,6 +94,109 @@ get_encoder(std::string_view tech, const std::vector<GstEncoder> &encoders, cons
   return std::nullopt;
 }
 
+/**
+ * ID is used by Moonlight to uniquely identify the app.
+ * We have to change it if we change something that will be displayed
+ */
+std::string generate_app_id(const BaseApp &app) {
+  auto hash = utils::hash(app.icon_png_path.value_or("") + app.title);
+  // Value must be truncated to signed 32-bit range due to client limitations
+  return std::to_string(abs((int32_t)hash));
+}
+
+std::shared_ptr<immer::atom<immer::vector<immer::box<events::App>>>>
+parse_apps(const std::vector<BaseApp> &apps,
+           const std::string &default_app_render_node,
+           const std::string &default_gst_render_node,
+           const GstreamerSettings &gstreamer_settings,
+           const std::optional<GstEncoder> &h264_encoder,
+           const std::optional<GstEncoder> &hevc_encoder,
+           const std::optional<GstEncoder> &av1_encoder,
+           const std::shared_ptr<events::EventBusType> &ev_bus,
+           state::SessionsAtoms running_sessions) {
+
+  auto default_h264 =
+      utils::get_optional(gstreamer_settings.video.defaults, h264_encoder.value_or(GstEncoder{}).plugin_name);
+  auto default_hevc =
+      utils::get_optional(gstreamer_settings.video.defaults, hevc_encoder.value_or(GstEncoder{}).plugin_name);
+  auto default_av1 =
+      utils::get_optional(gstreamer_settings.video.defaults, av1_encoder.value_or(GstEncoder{}).plugin_name);
+
+  auto parsed_apps =
+      apps |                                             //
+      ranges::views::transform([&](const BaseApp &app) { //
+        auto app_render_node = app.render_node.value_or(default_app_render_node);
+        if (app_render_node != default_gst_render_node) {
+          logs::log(logs::warning,
+                    "App {} render node ({}) doesn't match the default GPU ({})",
+                    app.title,
+                    app_render_node,
+                    default_gst_render_node);
+          // TODO: allow user to override gst_render_node
+        }
+        auto default_base_video = BaseAppVideoOverride{};
+        auto default_base_audio = BaseAppAudioOverride{};
+
+        auto h264_gst_pipeline = fmt::format(
+            "{} !\n{} !\n{} !\n{}", //
+            app.video.value_or(default_base_video).source.value_or(gstreamer_settings.video.default_source),
+            app.video.value_or(default_base_video)
+                .video_params.value_or(
+                    h264_encoder->video_params.value_or(default_h264.value_or(GstEncoderDefault{}).video_params)),
+            app.video.value_or(default_base_video).h264_encoder.value_or(h264_encoder->encoder_pipeline),
+            app.video.value_or(default_base_video).sink.value_or(gstreamer_settings.video.default_sink));
+
+        auto hevc_gst_pipeline =
+            hevc_encoder.has_value()
+                ? fmt::format(
+                      "{} !\n{} !\n{} !\n{}", //
+                      app.video.value_or(default_base_video).source.value_or(gstreamer_settings.video.default_source),
+                      app.video.value_or(default_base_video)
+                          .video_params.value_or(hevc_encoder->video_params.value_or(
+                              default_hevc.value_or(GstEncoderDefault{}).video_params)),
+                      app.video.value_or(default_base_video).hevc_encoder.value_or(hevc_encoder->encoder_pipeline),
+                      app.video.value_or(default_base_video).sink.value_or(gstreamer_settings.video.default_sink))
+                : "";
+
+        auto av1_gst_pipeline =
+            av1_encoder.has_value()
+                ? fmt::format(
+                      "{} !\n{} !\n{} !\n{}", //
+                      app.video.value_or(default_base_video).source.value_or(gstreamer_settings.video.default_source),
+                      app.video.value_or(default_base_video)
+                          .video_params.value_or(av1_encoder->video_params.value_or(
+                              default_av1.value_or(GstEncoderDefault{}).video_params)),
+                      app.video.value_or(default_base_video).av1_encoder.value_or(av1_encoder->encoder_pipeline),
+                      app.video.value_or(default_base_video).sink.value_or(gstreamer_settings.video.default_sink))
+                : "";
+
+        auto opus_gst_pipeline = fmt::format(
+            "{} !\n{} !\n{} !\n{}", //
+            app.audio.value_or(default_base_audio).source.value_or(gstreamer_settings.audio.default_source),
+            app.audio.value_or(default_base_audio).audio_params.value_or(gstreamer_settings.audio.default_audio_params),
+            app.audio.value_or(default_base_audio).opus_encoder.value_or(gstreamer_settings.audio.default_opus_encoder),
+            app.audio.value_or(default_base_audio).sink.value_or(gstreamer_settings.audio.default_sink));
+
+        return immer::box<events::App>{
+            events::App{.base = {.title = app.title,
+                                 .id = generate_app_id(app),
+                                 .support_hdr = false,
+                                 .icon_png_path = app.icon_png_path},
+                        .h264_gst_pipeline = h264_gst_pipeline,
+                        .hevc_gst_pipeline = hevc_gst_pipeline,
+                        .av1_gst_pipeline = av1_gst_pipeline,
+                        .render_node = app_render_node,
+
+                        .opus_gst_pipeline = opus_gst_pipeline,
+                        .start_virtual_compositor = app.start_virtual_compositor.value_or(true),
+                        .start_audio_server = app.start_audio_server.value_or(true),
+                        .runner = get_runner(app.runner, ev_bus, running_sessions)}};
+      }) |                                                  //
+      ranges::to<immer::vector<immer::box<events::App>>>(); //
+
+  return std::make_shared<immer::atom<immer::vector<immer::box<events::App>>>>(parsed_apps);
+}
+
 Config load_or_default(const std::string &source,
                        const std::shared_ptr<events::EventBusType> &ev_bus,
                        state::SessionsAtoms running_sessions) {
@@ -123,6 +225,59 @@ Config load_or_default(const std::string &source,
     out_file.open(source);
     out_file << v4;
     out_file.close();
+  } else if (version <= 4) {
+    logs::log(logs::warning, "Found old config file, migrating to newer version");
+    std::filesystem::rename(source, source + ".v4.old");
+    auto v4 = toml::parse_file(source + ".v4.old");
+    create_default(source);
+    auto v5 = toml::parse_file(source);
+    // Copy back everything else
+    v5.insert_or_assign("hostname", v4.at("hostname"));
+    v5.insert_or_assign("uuid", v4.at("uuid"));
+    v5.insert_or_assign("paired_clients", v4.at("paired_clients"));
+    v5.insert_or_assign("gstreamer", v4.at("gstreamer"));
+    // Insert old `apps` into the new `profiles` for the default profile (`user`)
+    const auto default_moonlight_apps = R""""(
+    id = "moonlight-profile-id"
+
+    [[apps]]
+    title = "Wolf UI"
+
+    [apps.runner]
+    type = "process"
+    run_cmd = "/usr/local/bin/wolf-ui"
+
+    [[apps]]
+    title = "Test ball"
+    start_virtual_compositor = false
+    start_audio_server = false
+
+    [apps.runner]
+    type = "process"
+    run_cmd = "sh -c \"while :; do echo 'running...'; sleep 10; done\""
+
+    [apps.video]
+    source = """
+    videotestsrc pattern=ball flip=true is-live=true !
+    video/x-raw, framerate={fps}/1
+    \
+    """
+
+    [apps.audio]
+    source = "audiotestsrc wave=ticks is-live=true"
+    )"""";
+
+    v5.insert_or_assign("profiles",
+                        toml::array{toml::parse(default_moonlight_apps),
+                                    toml::table({{"id", "user"}, {"name", "User"}, {"apps", v4.at("apps")}})});
+    std::ofstream out_file;
+    out_file.open(source);
+    if (!out_file.is_open()) {
+      throw std::runtime_error("Failed to open config file for writing");
+    }
+    out_file << v5;
+    out_file.close();
+    logs::log(logs::debug, "Migrated config from v4 to v5");
   }
 
   // Will throw if the config is invalid
@@ -180,99 +335,34 @@ Config load_or_default(const std::string &source,
       cfg.paired_clients                                                                                      //
       | ranges::views::transform([](const PairedClient &client) { return immer::box<PairedClient>{client}; }) //
       | ranges::to<immer::vector<immer::box<PairedClient>>>();
-
-  auto default_h264 =
-      utils::get_optional(default_gst_encoder_settings, h264_encoder.value_or(GstEncoder{}).plugin_name);
-  auto default_hevc =
-      utils::get_optional(default_gst_encoder_settings, hevc_encoder.value_or(GstEncoder{}).plugin_name);
-  auto default_av1 = utils::get_optional(default_gst_encoder_settings, av1_encoder.value_or(GstEncoder{}).plugin_name);
-
-  auto default_base_video = BaseAppVideoOverride{};
-
-  /* Get apps, here we'll merge the default gstreamer settings with the app specific overrides */
-  auto apps =
-      cfg.apps |                                                     //
-      ranges::views::enumerate |                                     //
-      ranges::views::transform([&](std::pair<int, BaseApp &> pair) { //
-        auto [idx, app] = pair;
-        auto app_render_node = app.render_node.value_or(default_app_render_node);
-        if (app_render_node != default_gst_render_node) {
-          logs::log(logs::warning,
-                    "App {} render node ({}) doesn't match the default GPU ({})",
-                    app.title,
-                    app_render_node,
-                    default_gst_render_node);
-          // TODO: allow user to override gst_render_node
-        }
-
-        auto h264_gst_pipeline = fmt::format(
-            "{} !\n{} !\n{} !\n{}", //
-            app.video.value_or(default_base_video).source.value_or(default_gst_video_settings.default_source),
-            app.video.value_or(default_base_video)
-                .video_params.value_or(
-                    h264_encoder->video_params.value_or(default_h264.value_or(GstEncoderDefault{}).video_params)),
-            app.video.value_or(default_base_video).h264_encoder.value_or(h264_encoder->encoder_pipeline),
-            app.video.value_or(default_base_video).sink.value_or(default_gst_video_settings.default_sink));
-
-        auto hevc_gst_pipeline =
-            hevc_encoder.has_value()
-                ? fmt::format(
-                      "{} !\n{} !\n{} !\n{}", //
-                      app.video.value_or(default_base_video).source.value_or(default_gst_video_settings.default_source),
-                      app.video.value_or(default_base_video)
-                          .video_params.value_or(hevc_encoder->video_params.value_or(
-                              default_hevc.value_or(GstEncoderDefault{}).video_params)),
-                      app.video.value_or(default_base_video).hevc_encoder.value_or(hevc_encoder->encoder_pipeline),
-                      app.video.value_or(default_base_video).sink.value_or(default_gst_video_settings.default_sink))
-                : "";
-
-        auto av1_gst_pipeline =
-            av1_encoder.has_value()
-                ? fmt::format(
-                      "{} !\n{} !\n{} !\n{}", //
-                      app.video.value_or(default_base_video).source.value_or(default_gst_video_settings.default_source),
-                      app.video.value_or(default_base_video)
-                          .video_params.value_or(av1_encoder->video_params.value_or(
-                              default_av1.value_or(GstEncoderDefault{}).video_params)),
-                      app.video.value_or(default_base_video).av1_encoder.value_or(av1_encoder->encoder_pipeline),
-                      app.video.value_or(default_base_video).sink.value_or(default_gst_video_settings.default_sink))
-                : "";
-
-        auto opus_gst_pipeline = fmt::format(
-            "{} !\n{} !\n{} !\n{}", //
-            app.audio.value_or(BaseAppAudioOverride{}).source.value_or(default_gst_audio_settings.default_source),
-            app.audio.value_or(BaseAppAudioOverride{})
-                .audio_params.value_or(default_gst_audio_settings.default_audio_params),
-            app.audio.value_or(BaseAppAudioOverride{})
-                .opus_encoder.value_or(default_gst_audio_settings.default_opus_encoder),
-            app.audio.value_or(BaseAppAudioOverride{}).sink.value_or(default_gst_audio_settings.default_sink));
-
-        return immer::box<events::App>{
-            events::App{.base = {.title = app.title,
-                                 .id = std::to_string(idx + 1),
-                                 .support_hdr = false,
-                                 .icon_png_path = app.icon_png_path},
-                        .h264_gst_pipeline = h264_gst_pipeline,
-                        .hevc_gst_pipeline = hevc_gst_pipeline,
-                        .av1_gst_pipeline = av1_gst_pipeline,
-                        .render_node = app_render_node,
-
-                        .opus_gst_pipeline = opus_gst_pipeline,
-                        .start_virtual_compositor = app.start_virtual_compositor.value_or(true),
-                        .start_audio_server = app.start_audio_server.value_or(true),
-                        .runner = get_runner(app.runner, ev_bus, running_sessions)}};
-      }) |                                                  //
-      ranges::to<immer::vector<immer::box<events::App>>>(); //
-
   auto clients_atom = std::make_shared<immer::atom<state::PairedClientList>>(paired_clients);
-  auto apps_atom = std::make_shared<immer::atom<immer::vector<immer::box<events::App>>>>(apps);
+
+  /* Get profiles, for each app defined will merge with default settings */
+  auto profiles = cfg.profiles | //
+                  ranges::views::transform([&](const Profile &profile) {
+                    return events::Profile{.id = profile.id,
+                                           .name = profile.name.value_or(""),
+                                           .icon_png_path = profile.icon_png_path.value_or(""),
+                                           .apps = parse_apps(profile.apps,
+                                                              default_app_render_node,
+                                                              default_gst_render_node,
+                                                              cfg.gstreamer,
+                                                              h264_encoder,
+                                                              hevc_encoder,
+                                                              av1_encoder,
+                                                              ev_bus,
+                                                              running_sessions)};
+                  }) |
+                  ranges::to<ProfilesList>();
+  auto profiles_atom = std::make_shared<immer::atom<ProfilesList>>(profiles);
+
   return Config{.uuid = cfg.uuid,
                 .hostname = cfg.hostname,
                 .config_source = source,
                 .support_hevc = hevc_encoder.has_value(),
                 .support_av1 = av1_encoder.has_value() && encoder_type(*av1_encoder) != SOFTWARE,
                 .paired_clients = clients_atom,
-                .apps = apps_atom};
+                .profiles = profiles_atom};
 }
 
 void pair(const Config &cfg, const PairedClient &client) {

@@ -110,7 +110,6 @@ COPY --from=wolf-builder /wolf/fake-udev /wolf/fake-udev
 COPY --from=ghcr.io/games-on-whales/wolf-ui:alpha /usr/local/bin/wolf-ui /usr/local/bin/wolf-ui
 
 ENV XDG_RUNTIME_DIR=/tmp/sockets \
-    WOLF_UI_BIN=/usr/local/bin/wolf-ui \
     WOLF_LOG_LEVEL=INFO \
     WOLF_CFG_FILE=$WOLF_CFG_FOLDER/config.toml \
     WOLF_PRIVATE_KEY_FILE=$WOLF_CFG_FOLDER/key.pem \

@@ -95,14 +95,32 @@ inline std::optional<PairedClient> get_client_by_id(const Config &cfg, const std
 }
 
 /**
- * Return the app with the given app_id (if it exists)
+ * Returns the profile that represent apps shown in the Moonlight UI
  */
-inline std::optional<immer::box<events::App>> get_app_by_id(const Config &cfg, std::string_view app_id) {
-  auto apps = cfg.apps->load();
-  auto search_result =
-      std::find_if(apps->begin(), apps->end(), [&app_id](const events::App &app) { return app.base.id == app_id; });
+inline std::optional<immer::box<events::Profile>> get_moonlight_profile(const Config &cfg) {
+  ProfilesList profiles = cfg.profiles->load();
+  auto profile = std::find_if(profiles.begin(), profiles.end(), [](const immer::box<events::Profile> &profile) {
+    return profile->id == events::MOONLIGHT_PROFILE_ID;
+  });
 
-  if (search_result != apps->end())
+  if (profile != profiles.end())
+    return *profile;
+  else
+    return std::nullopt;
+}
+
+/**
+ * Returns the app with the given app_id (if it exists)
+ */
+inline std::optional<immer::box<events::App>> get_moonlight_app_by_id(const Config &cfg, std::string_view app_id) {
+  auto moonlight_profile = get_moonlight_profile(cfg);
+  if (!moonlight_profile)
+    return std::nullopt;
+  immer::vector<immer::box<events::App>> apps = moonlight_profile.value()->apps->load();
+  auto search_result =
+      std::find_if(apps.begin(), apps.end(), [&app_id](const events::App &app) { return app.base.id == app_id; });
+
+  if (search_result != apps.end())
     return {*search_result};
   else
     return std::nullopt;

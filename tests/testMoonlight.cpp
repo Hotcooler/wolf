@@ -29,12 +29,14 @@ TEST_CASE("LocalState load TOML", "[LocalState]") {
   REQUIRE(state.support_hevc);
 
   SECTION("Apps") {
-    auto apps = state.apps->load().get();
+    auto moonlight_profile = state::get_moonlight_profile(state);
+    REQUIRE(moonlight_profile);
+    immer::vector<immer::box<events::App>> apps = moonlight_profile.value()->apps->load();
     REQUIRE_THAT(apps, Catch::Matchers::SizeIs(2));
 
-    auto first_app = apps[0];
+    auto first_app = apps.at(0);
     REQUIRE_THAT(first_app->base.title, Equals("Firefox"));
-    REQUIRE_THAT(first_app->base.id, Equals("1"));
+    REQUIRE_THAT(first_app->base.id, Equals("304556286"));
     REQUIRE_THAT(first_app->base.icon_png_path.value(), Equals("firefox.png"));
     REQUIRE_THAT(first_app->h264_gst_pipeline, Equals("video_source !\ndefault !\nh264_pipeline !\nvideo_sink"));
     REQUIRE_THAT(first_app->hevc_gst_pipeline, Equals("video_source !\ndefault !\nhevc_pipeline !\nvideo_sink"));
@@ -44,9 +46,9 @@ TEST_CASE("LocalState load TOML", "[LocalState]") {
     auto first_app_runner = rfl::get<AppDocker>(first_app->runner->serialize().variant());
     REQUIRE_THAT(first_app_runner.image, Equals("ghcr.io/games-on-whales/firefox:master"));
 
-    auto second_app = apps[1];
+    auto second_app = apps.at(1);
     REQUIRE_THAT(second_app->base.title, Equals("Test ball"));
-    REQUIRE_THAT(second_app->base.id, Equals("2"));
+    REQUIRE_THAT(second_app->base.id, Equals("378473508"));
     REQUIRE(second_app->base.icon_png_path.has_value() == false);
     REQUIRE_THAT(second_app->h264_gst_pipeline,
                  Equals("override DEFAULT SOURCE !\ndefault !\nh264_pipeline !\nvideo_sink"));
@@ -483,13 +485,16 @@ TEST_CASE("applist", "[MoonlightProtocol]") {
   auto event_bus = std::make_shared<events::EventBusType>();
   auto running_sessions = std::make_shared<immer::atom<immer::vector<events::StreamSession>>>();
   auto cfg = state::load_or_default("config.test.toml", event_bus, running_sessions);
-  auto base_apps = cfg.apps->load().get() | views::transform([](auto app) { return app->base; }) |
+  auto moonlight_profile = state::get_moonlight_profile(cfg);
+  REQUIRE(moonlight_profile);
+  immer::vector<immer::box<events::App>> apps = moonlight_profile.value()->apps->load();
+  auto base_apps = apps | views::transform([](auto app) { return app->base; }) |
                    to<immer::vector<moonlight::App>>();
   auto result = applist(base_apps);
   REQUIRE(xml_to_str(result) == "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                                 "<root status_code=\"200\">"
-                                "<App><IsHdrSupported>0</IsHdrSupported><AppTitle>Firefox</AppTitle><ID>1</ID></App>"
-                                "<App><IsHdrSupported>0</IsHdrSupported><AppTitle>Test ball</AppTitle><ID>2</ID></App>"
+                                "<App><IsHdrSupported>0</IsHdrSupported><AppTitle>Firefox</AppTitle><ID>304556286</ID></App>"
+                                "<App><IsHdrSupported>0</IsHdrSupported><AppTitle>Test ball</AppTitle><ID>378473508</ID></App>"
                                 "</root>");
 }
 

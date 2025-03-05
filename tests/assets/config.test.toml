@@ -6,7 +6,7 @@ uuid = "0000-1111-2222-3333"
 support_hevc = true
 support_av1 = false
 # The version of this config file
-config_version = 4
+config_version = 5
 
 
 # A list of paired clients that will be allowed to stream
@@ -21,12 +21,15 @@ mouse_acceleration = 2.5
 v_scroll_acceleration = 1.5
 h_scroll_acceleration = 10.2
 
-[[apps]]
+[[profiles]]
+id = "moonlight-profile-id"
+
+[[profiles.apps]]
 title = "Firefox"
 start_virtual_compositor = true
 icon_png_path = "firefox.png"
 
-[apps.runner]
+[profiles.apps.runner]
 type = "docker"
 name = "WolfRetroarch"
 image = "ghcr.io/games-on-whales/firefox:master"
@@ -52,20 +55,24 @@ base_create_json = """
 \
 """
 
-[[apps]]
+[[profiles.apps]]
 title = "Test ball"
 start_virtual_compositor = false
 render_node = "/tmp/dead_beef"
 joypad_type = "XBOX"
 
-[apps.runner]
+[profiles.apps.runner]
 type = "process"
 run_cmd = "destroy_computer_now"
 
-[apps.video]
+[profiles.apps.video]
 source = "override DEFAULT SOURCE"
 
-
+# An example profile that will be shown in our Wolf UI
+[[profiles]]
+id = "user"
+name = "User"
+apps = []
 
 [gstreamer]
 

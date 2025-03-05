@@ -324,7 +324,9 @@ void applist(const std::shared_ptr<typename SimpleWeb::Server<SimpleWeb::HTTPS>:
              const immer::box<state::AppState> &state) {
   log_req<SimpleWeb::HTTPS>(request);
 
-  auto base_apps = state->config->apps->load().get()                                     //
+  immer::vector<immer::box<events::App>> moonlight_apps =
+      state::get_moonlight_profile(state->config).value()->apps->load();
+  auto base_apps = moonlight_apps                                                        //
                    | ranges::views::transform([](const auto &app) { return app->base; }) //
                    | ranges::to<immer::vector<moonlight::App>>();
   auto xml = moonlight::applist(base_apps);
@@ -344,7 +346,7 @@ void appasset(const std::shared_ptr<typename SimpleWeb::Server<SimpleWeb::HTTPS>
     server_error<SimpleWeb::HTTPS>(response);
     return;
   }
-  auto app = state::get_app_by_id(state->config, app_id.value());
+  auto app = state::get_moonlight_app_by_id(state->config, app_id.value());
   if (!app || !app.value()->base.icon_png_path) {
     logs::log(logs::warning, "[HTTP] Can't find icon_png_path for app with id: {}", app_id.value());
     server_error<SimpleWeb::HTTPS>(response);
@@ -419,7 +421,7 @@ void launch(const std::shared_ptr<typename SimpleWeb::Server<SimpleWeb::HTTPS>::
   log_req<SimpleWeb::HTTPS>(request);
 
   SimpleWeb::CaseInsensitiveMultimap headers = request->parse_query_string();
-  auto app = state::get_app_by_id(state->config, get_header(headers, "appid").value());
+  auto app = state::get_moonlight_app_by_id(state->config, get_header(headers, "appid").value());
   if (!app) {
     logs::log(logs::warning, "[HTTP] Requested wrong app_id: not found");
     server_error<SimpleWeb::HTTPS>(response);
