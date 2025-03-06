@@ -105,17 +105,16 @@ UnixSocketServer::UnixSocketServer(boost::asio::io_context &io_context,
           .handler = [this](auto req, auto socket) { endpoint_Apps(req, socket); },
       });
 
-  state_->http.add(
-      HTTPMethod::POST,
-      "/api/v1/apps/add",
-      {
-          .summary = "Add a Moonlight app",
-          .request_description =
-              APIDescription{.json_schema = rfl::json::to_schema<rfl::Reflector<events::App>::ReflType>()},
-          .response_description = {{200, {.json_schema = rfl::json::to_schema<GenericSuccessResponse>()}},
-                                   {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
-          .handler = [this](auto req, auto socket) { endpoint_AddApp(req, socket); },
-      });
+  state_->http.add(HTTPMethod::POST,
+                   "/api/v1/apps/add",
+                   {
+                       .summary = "Add a Moonlight app",
+                       .request_description =
+                           APIDescription{.json_schema = rfl::json::to_schema<rfl::Reflector<events::App>::ReflType>()},
+                       .response_description = {{200, {.json_schema = rfl::json::to_schema<GenericSuccessResponse>()}},
+                                                {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
+                       .handler = [this](auto req, auto socket) { endpoint_AddApp(req, socket); },
+                   });
 
   state_->http.add(HTTPMethod::POST,
                    "/api/v1/apps/delete",
@@ -181,8 +180,7 @@ UnixSocketServer::UnixSocketServer(boost::asio::io_context &io_context,
       {
           .summary = "Create a new stream session",
           .request_description =
-              APIDescription{
-                  .json_schema = rfl::json::to_schema<rfl::Reflector<events::StreamSession>::ReflType>()},
+              APIDescription{.json_schema = rfl::json::to_schema<rfl::Reflector<events::StreamSession>::ReflType>()},
           .response_description = {{200, {.json_schema = rfl::json::to_schema<StreamSessionCreated>()}},
                                    {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
           .handler = [this](auto req, auto socket) { endpoint_StreamSessionAdd(req, socket); },

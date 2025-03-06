@@ -14,14 +14,24 @@
   "paths": {
     "/api/v1/apps": {
       "get": {
-        "summary": "Get all apps",
-        "description": "This endpoint returns a list of all apps.",
+        "summary": "Get all Moonlight apps",
+        "description": "This endpoint returns a list of all apps that will be shown in the Moonlight client.",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/wolf__api__AppListResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/wolf__api__GenericErrorResponse"
                 }
               }
             },
@@ -80,6 +90,24 @@
         }
       }
     },
+    "/api/v1/profiles": {
+      "get": {
+        "summary": "Get all profiles",
+        "description": "This endpoint returns a list of all profiles.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/wolf__api__ProfileListResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "summary": "Get all stream sessions",
@@ -100,7 +128,7 @@
     },
     "/api/v1/apps/add": {
       "post": {
-        "summary": "Add an app",
+        "summary": "Add a Moonlight app",
         "description": "",
         "requestBody": {
           "content": {
@@ -139,7 +167,7 @@
     },
     "/api/v1/apps/delete": {
       "post": {
-        "summary": "Remove an app",
+        "summary": "Remove a Moonlight app",
         "description": "",
         "requestBody": {
           "content": {
@@ -244,6 +272,84 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/wolf__api__PairRequest"
+              }
+            }
+          },
+          "description": "",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/wolf__api__GenericSuccessResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/wolf__api__GenericErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/add": {
+      "post": {
+        "summary": "Create a new profile",
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/rfl__Reflector_wolf__core__events__Profile___ReflType"
+              }
+            }
+          },
+          "description": "",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/wolf__api__GenericSuccessResponse"
+                }
+              }
+            },
+            "description": ""
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/wolf__api__GenericErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/remove": {
+      "post": {
+        "summary": "Remove a profile",
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/wolf__api__ProfileRemoveRequest"
               }
             }
           },
@@ -621,6 +727,32 @@
           "title"
         ]
       },
+      "rfl__Reflector_wolf__core__events__Profile___ReflType": {
+        "type": "object",
+        "properties": {
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/rfl__Reflector_wolf__core__events__App___ReflType"
+            }
+          },
+          "icon_png_path": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "apps",
+          "icon_png_path",
+          "id",
+          "name"
+        ]
+      },
       "rfl__Reflector_wolf__core__events__StreamSession___ReflType": {
         "type": "object",
         "properties": {
@@ -875,6 +1007,35 @@
         "required": [
           "requests",
           "success"
+        ]
+      },
+      "wolf__api__ProfileListResponse": {
+        "type": "object",
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/rfl__Reflector_wolf__core__events__Profile___ReflType"
+            }
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profiles",
+          "success"
+        ]
+      },
+      "wolf__api__ProfileRemoveRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
         ]
       },
       "wolf__api__RunnerStartRequest": {
