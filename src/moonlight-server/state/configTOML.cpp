@@ -421,4 +421,30 @@ void update_client_settings(const Config &cfg, std::size_t client_id, const Pair
   rfl::toml::save(cfg.config_source, tml);
 }
 
+void update_profiles(const Config &cfg, const ProfilesList &profiles) {
+  cfg.profiles->store(profiles);
+
+  auto tml = rfl::toml::load<WolfConfig, rfl::DefaultIfMissing>(cfg.config_source).value();
+  tml.profiles = profiles | //
+                 ranges::views::transform([](const immer::box<events::Profile> &p) {
+                   return Profile{
+                       .id = p->id,
+                       .name = p->name,
+                       .icon_png_path = p->icon_png_path,
+                       .apps = p->apps->load().get() | //
+                               ranges::views::transform([](const immer::box<events::App> &app) {
+                                 return BaseApp{.title = app->base.title,
+                                                .icon_png_path = app->base.icon_png_path,
+                                                .render_node = app->render_node,
+                                                .start_virtual_compositor = app->start_virtual_compositor,
+                                                .start_audio_server = app->start_audio_server,
+                                                .runner = app->runner->serialize()};
+                               }) | //
+                               ranges::to_vector,
+                   };
+                 }) | //
+                 ranges::to_vector;
+  rfl::toml::save(cfg.config_source, tml);
+}
+
 } // namespace state

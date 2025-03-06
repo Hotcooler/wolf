@@ -182,9 +182,11 @@ TEST_CASE("Pair APIs", "[API]") {
 TEST_CASE("APPs APIs", "[API]") {
   auto event_bus = std::make_shared<events::EventBusType>();
   auto running_sessions = std::make_shared<immer::atom<immer::vector<events::StreamSession>>>();
-  auto config = immer::box<state::Config>(state::load_or_default("config.test.toml", event_bus, running_sessions));
+  auto config = state::load_or_default("config.test.toml", event_bus, running_sessions);
+  // Avoid overriding the test config file (shared across multiple tests)
+  config.config_source = "config.test.EDITED.toml";
   auto app_state = immer::box<state::AppState>(state::AppState{
-      .config = config,
+      .config = {config},
       .pairing_cache = std::make_shared<immer::atom<immer::map<std::string, state::PairCache>>>(),
       .pairing_atom = std::make_shared<immer::atom<immer::map<std::string, immer::box<events::PairSignal>>>>(),
       .event_bus = event_bus,
@@ -253,6 +255,89 @@ TEST_CASE("APPs APIs", "[API]") {
   auto apps3 = rfl::json::read<AppListResponse>(response->second).value();
   REQUIRE(apps3.success);
   REQUIRE(apps3.apps.size() == 2);
+}
+
+TEST_CASE("Profile APIs", "[API]") {
+  auto event_bus = std::make_shared<events::EventBusType>();
+  auto running_sessions = std::make_shared<immer::atom<immer::vector<events::StreamSession>>>();
+  auto config = state::load_or_default("config.test.toml", event_bus, running_sessions);
+  // Avoid overriding the test config file (shared across multiple tests)
+  config.config_source = "config.test.EDITED.toml";
+  auto app_state = immer::box<state::AppState>(state::AppState{
+      .config = {config},
+      .pairing_cache = std::make_shared<immer::atom<immer::map<std::string, state::PairCache>>>(),
+      .pairing_atom = std::make_shared<immer::atom<immer::map<std::string, immer::box<events::PairSignal>>>>(),
+      .event_bus = event_bus,
+      .running_sessions = running_sessions});
+
+  // Start the server
+  std::thread server_thread([app_state]() { wolf::api::start_server(app_state); });
+  server_thread.detach();
+  std::this_thread::sleep_for(std::chrono::milliseconds(42)); // Wait for the server to start
+
+  auto curl = curl_ptr(curl_easy_init(), ::curl_easy_cleanup);
+
+  curl_easy_setopt(curl.get(), CURLOPT_UNIX_SOCKET_PATH, "/tmp/wolf.sock");
+  curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+
+  // Test the initial profile list only has the default user
+  {
+    auto response = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/profiles");
+    REQUIRE(response);
+    REQUIRE_THAT(response->second,
+                 Catch::Matchers::Equals(
+                     R"({"success":true,"profiles":[{"name":"User","id":"user","icon_png_path":"","apps":[]}]})"));
+  }
+
+  // Test adding a profile
+  {
+    auto runner = std::make_shared<process::RunProcess>(event_bus, "destroy-all-humans.exe");
+    auto apps = immer::vector<immer::box<events::App>>{
+        events::App{.base = {.title = "Destroy All Humans", .id = "2", .support_hdr = false, .icon_png_path = ""},
+                    .h264_gst_pipeline = "h264",
+                    .hevc_gst_pipeline = "hevc",
+                    .av1_gst_pipeline = "av1",
+                    .render_node = "render_node",
+                    .opus_gst_pipeline = "opus",
+                    .start_virtual_compositor = true,
+                    .start_audio_server = false,
+                    .runner = runner}};
+    auto profile = events::Profile{
+        .id = "test",
+        .name = "Test",
+        .icon_png_path = "",
+        .apps = std::make_shared<immer::atom<immer::vector<immer::box<events::App>>>>(apps),
+    };
+    auto response =
+        req(curl.get(), HTTPMethod::POST, "http://localhost/api/v1/profiles/add", rfl::json::write(profile));
+    REQUIRE(response);
+    REQUIRE_THAT(response->second, Catch::Matchers::Equals(R"({"success":true})"));
+
+    // Test the profile list now has the new profile
+    auto response2 = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/profiles");
+    REQUIRE(response2);
+    auto profiles = rfl::json::read<ProfileListResponse>(response2->second);
+    REQUIRE(profiles);
+    REQUIRE(profiles.value().profiles.size() == 2);
+    REQUIRE_THAT(profiles.value().profiles[1].name, Equals(profile.name));
+    REQUIRE_THAT(profiles.value().profiles[1].id, Equals(profile.id));
+    REQUIRE_THAT(profiles.value().profiles[1].icon_png_path, Equals(profile.icon_png_path));
+    REQUIRE(profiles.value().profiles[1].apps.size() == 1);
+  }
+
+  // Test removing a profile
+  {
+    auto response = req(curl.get(), HTTPMethod::POST, "http://localhost/api/v1/profiles/remove", R"({"id":"test"})");
+    REQUIRE(response);
+    REQUIRE_THAT(response->second, Catch::Matchers::Equals(R"({"success":true})"));
+    // Test the profile list now has the new profile
+    auto response2 = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/profiles");
+    REQUIRE(response2);
+    auto profiles = rfl::json::read<ProfileListResponse>(response2->second);
+    REQUIRE(profiles);
+    REQUIRE(profiles.value().profiles.size() == 1);
+    REQUIRE_THAT(profiles.value().profiles[0].name, Equals("User"));
+  }
 }
 
 TEST_CASE("Sessions APIs", "[API]") {

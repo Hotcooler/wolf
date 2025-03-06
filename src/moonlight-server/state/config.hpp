@@ -27,11 +27,13 @@ Config load_or_default(const std::string &source,
 
 /**
  * Side effect, will atomically update the paired clients list in cfg
+ * and persist the new state to disk
  */
 void pair(const Config &cfg, const PairedClient &client);
 
 /**
  * Side effect, will atomically remove the client from the list of paired clients
+ * and persist the new state to disk
  */
 void unpair(const Config &cfg, const PairedClient &client);
 
@@ -176,4 +178,10 @@ std::optional<PairedClient> get_client_by_id(const Config &cfg, const std::strin
  * Side effects: will save back the configuration to disk
  */
 void update_client_settings(const Config &cfg, std::size_t client_id, const PairedClient &updated_client);
+
+/**
+ * Replaces the currently loaded profiles
+ * Side effects: will save back the configuration to disk
+ */
+void update_profiles(const Config &cfg, const ProfilesList &profiles);
 } // namespace state

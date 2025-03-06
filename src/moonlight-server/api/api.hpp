@@ -70,10 +70,19 @@ struct UpdateClientSettingsRequest {
 
 struct AppListResponse {
   bool success = true;
-  std::vector<rfl::Reflector<wolf::core::events::App>::ReflType> apps;
+  std::vector<rfl::Reflector<events::App>::ReflType> apps;
 };
 
 struct AppDeleteRequest {
+  std::string id;
+};
+
+struct ProfileListResponse {
+  bool success = true;
+  std::vector<rfl::Reflector<events::Profile>::ReflType> profiles;
+};
+
+struct ProfileRemoveRequest {
   std::string id;
 };
 
@@ -84,14 +93,14 @@ struct StreamSessionCreated {
 
 struct StreamSessionListResponse {
   bool success = true;
-  std::vector<rfl::Reflector<wolf::core::events::StreamSession>::ReflType> sessions;
+  std::vector<rfl::Reflector<events::StreamSession>::ReflType> sessions;
 };
 
 struct StreamSessionStartRequest {
   std::string session_id;
 
-  wolf::core::events::VideoSession video_session;
-  wolf::core::events::AudioSession audio_session;
+  events::VideoSession video_session;
+  events::AudioSession audio_session;
 };
 
 struct StreamSessionPauseRequest {
@@ -137,11 +146,16 @@ private:
   void endpoint_PendingPairRequest(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_Pair(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_PairedClients(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+  void endpoint_UnpairClient(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
 
   void endpoint_Apps(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_AddApp(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_RemoveApp(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
-  void endpoint_UnpairClient(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+
+  void endpoint_Profiles(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+  void endpoint_AddProfile(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+  void endpoint_RemoveProfile(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+
   void endpoint_StreamSessions(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_StreamSessionAdd(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_StreamSessionStart(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);

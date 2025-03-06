@@ -1,5 +1,8 @@
 #pragma once
 
+#include "state/config.hpp"
+#include "state/data-structures.hpp"
+
 #include <events/events.hpp>
 #include <rfl.hpp>
 #include <state/serialised_config.hpp>
@@ -58,6 +61,53 @@ template <> struct Reflector<events::App> {
             .start_virtual_compositor = v.start_virtual_compositor,
             .start_audio_server = v.start_audio_server,
             .runner = v.runner->serialize()};
+  }
+
+  static events::App
+  to(const ReflType &app, const std::shared_ptr<events::EventBusType> &ev_bus, state::SessionsAtoms running_sessions) {
+    auto runner = state::get_runner(app.runner, ev_bus, running_sessions);
+    return events::App{
+        .base = {.title = app.title, .id = app.id, .support_hdr = app.support_hdr, .icon_png_path = app.icon_png_path},
+        .h264_gst_pipeline = app.h264_gst_pipeline,
+        .hevc_gst_pipeline = app.hevc_gst_pipeline,
+        .av1_gst_pipeline = app.av1_gst_pipeline,
+        .render_node = app.render_node,
+        .opus_gst_pipeline = app.opus_gst_pipeline,
+        .start_virtual_compositor = app.start_virtual_compositor,
+        .runner = runner,
+    };
+  }
+};
+
+template <> struct Reflector<events::Profile> {
+  struct ReflType {
+    std::string name;
+    std::string id;
+    std::string icon_png_path;
+    std::vector<Reflector<events::App>::ReflType> apps;
+  };
+
+  static ReflType from(const events::Profile &v) {
+    immer::vector<immer::box<events::App>> apps_boxed = v.apps->load();
+    std::vector<Reflector<events::App>::ReflType> apps;
+    for (const auto &app : apps_boxed) {
+      apps.push_back(Reflector<events::App>::from(*app));
+    }
+    return {.name = v.name, .id = v.id, .icon_png_path = v.icon_png_path, .apps = apps};
+  }
+
+  static events::Profile
+  to(const ReflType &v, const std::shared_ptr<events::EventBusType> &ev_bus, state::SessionsAtoms running_sessions) {
+    auto parsed_apps = v.apps | //
+                       ranges::views::transform([ev_bus, running_sessions](const auto &app) {
+                         return immer::box<events::App>(Reflector<events::App>::to(app, ev_bus, running_sessions));
+                       }) |
+                       ranges::to<immer::vector<immer::box<events::App>>>();
+
+    return {.id = v.id,
+            .name = v.name,
+            .icon_png_path = v.icon_png_path,
+            .apps = std::make_shared<immer::atom<immer::vector<immer::box<events::App>>>>(parsed_apps)};
   }
 };
 
