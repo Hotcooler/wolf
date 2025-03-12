@@ -116,12 +116,13 @@ target_include_directories(wolf_runner PUBLIC .)
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS */*.hpp)
 file(GLOB SRC_LIST SRCS
         api/*.cpp
-        gst-plugin/*.cpp
         control/*.cpp
+        gst-plugin/*.cpp
         rest/*.cpp
         rtp/*.cpp
         rtsp/*.cpp
         runners/*.cpp
+        sessions/*.cpp
         state/*.cpp
         streaming/*.cpp)
 

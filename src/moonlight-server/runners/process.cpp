@@ -10,7 +10,7 @@ namespace process {
 
 using namespace wolf::core::events;
 
-void RunProcess::run(std::size_t session_id,
+void RunProcess::run(std::string_view session_id,
                      std::string_view app_state_folder,
                      std::shared_ptr<events::devices_atom_queue> plugged_devices_queue,
                      const immer::array<std::string> &virtual_inputs,
@@ -45,7 +45,14 @@ void RunProcess::run(std::size_t session_id,
 
   auto terminate_handler = this->ev_bus->register_handler<immer::box<StopStreamEvent>>(
       [&group_proc, session_id](const immer::box<StopStreamEvent> &terminate_ev) {
-        if (terminate_ev->session_id == session_id) {
+        if (std::to_string(terminate_ev->session_id) == session_id) {
+          group_proc.terminate(); // Manually terminate the process
+        }
+      });
+
+  auto terminate_lobby_handler = this->ev_bus->register_handler<immer::box<StopLobbyEvent>>(
+      [&group_proc, session_id](const immer::box<StopLobbyEvent> &terminate_ev) {
+        if (terminate_ev->lobby_id == session_id) {
           group_proc.terminate(); // Manually terminate the process
         }
       });

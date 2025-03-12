@@ -23,39 +23,40 @@ TEST_CASE("Serialize to JSON", "[serialization]") {
   }
 
   SECTION("Wolf events") {
-    auto event = events::PlugDeviceEvent{.session_id = 123,
+    auto event = events::PlugDeviceEvent{.session_id = "123",
                                          .udev_events = {{{"add", "usb"}}},
                                          .udev_hw_db_entries = {{"usb", {"usb1", "usb2"}}}};
 
     REQUIRE_THAT(rfl::json::write(event),
-                 Equals("{\"session_id\":123,"
+                 Equals("{\"session_id\":\"123\","
                         "\"udev_events\":[{\"add\":\"usb\"}],"
                         "\"udev_hw_db_entries\":[[\"usb\",[\"usb1\",\"usb2\"]]]}"));
 
     auto event2 = events::PairSignal{.client_ip = "192.168.1.1", .host_ip = "0.0.0.0"};
 
-    REQUIRE_THAT(rfl::json::write(event2), Equals("{\"client_ip\":\"192.168.1.1\","
-                                                  "\"host_ip\":\"0.0.0.0\"}"));
+    REQUIRE_THAT(rfl::json::write(event2),
+                 Equals("{\"client_ip\":\"192.168.1.1\","
+                        "\"host_ip\":\"0.0.0.0\"}"));
   }
 
   // TODO: test the inverse operation, rfl::json::read
 }
 
-//TEST_CASE("Serialize to msgpack", "[serialization]") {
-//  SECTION("example from the README") {
+// TEST_CASE("Serialize to msgpack", "[serialization]") {
+//   SECTION("example from the README") {
 //
-//    struct Person {
-//      std::string first_name;
-//      std::string last_name;
-//      int age;
-//    };
+//     struct Person {
+//       std::string first_name;
+//       std::string last_name;
+//       int age;
+//     };
 //
-//    const auto homer = Person{.first_name = "Homer", .last_name = "Simpson", .age = 45};
+//     const auto homer = Person{.first_name = "Homer", .last_name = "Simpson", .age = 45};
 //
-//    auto result = rfl::msgpack::read<Person>(rfl::msgpack::write(homer));
+//     auto result = rfl::msgpack::read<Person>(rfl::msgpack::write(homer));
 //
-//    REQUIRE_THAT(result.value().first_name, Equals("Homer"));
-//    REQUIRE_THAT(result.value().last_name, Equals("Simpson"));
-//    REQUIRE(result.value().age == 45);
-//  }
-//}
+//     REQUIRE_THAT(result.value().first_name, Equals("Homer"));
+//     REQUIRE_THAT(result.value().last_name, Equals("Simpson"));
+//     REQUIRE(result.value().age == 45);
+//   }
+// }

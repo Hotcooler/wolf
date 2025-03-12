@@ -13,7 +13,7 @@ void create_udev_hw_files(std::filesystem::path base_hw_db_path,
   }
 }
 
-void RunDocker::run(std::size_t session_id,
+void RunDocker::run(std::string_view session_id,
                     std::string_view app_state_folder,
                     std::shared_ptr<events::devices_atom_queue> plugged_devices_queue,
                     const immer::array<std::string> &virtual_inputs,
@@ -129,7 +129,14 @@ void RunDocker::run(std::size_t session_id,
 
     auto terminate_handler = this->ev_bus->register_handler<immer::box<events::StopStreamEvent>>(
         [session_id, container_id, this](const immer::box<events::StopStreamEvent> &terminate_ev) {
-          if (terminate_ev->session_id == session_id) {
+          if (std::to_string(terminate_ev->session_id) == session_id) {
+            docker_api.stop_by_id(container_id);
+          }
+        });
+
+    auto terminate_lobby_handler = this->ev_bus->register_handler<immer::box<events::StopLobbyEvent>>(
+        [session_id, container_id, this](const immer::box<events::StopLobbyEvent> &terminate_ev) {
+          if (terminate_ev->lobby_id == session_id) {
             docker_api.stop_by_id(container_id);
           }
         });
@@ -138,7 +145,11 @@ void RunDocker::run(std::size_t session_id,
         [session_id, container_id, hw_db_path, this](const immer::box<events::UnplugDeviceEvent> &ev) {
           if (ev->session_id == session_id) {
             for (const auto &[filename, content] : ev->udev_hw_db_entries) {
-              std::filesystem::remove(hw_db_path / filename);
+              try {
+                std::filesystem::remove(hw_db_path / filename);
+              } catch (const std::filesystem::filesystem_error &e) {
+                logs::log(logs::warning, "[DOCKER] Failed to remove udev hwdb entry: {}", e.what());
+              }
             }
 
             for (auto udev_ev : ev->udev_events) {
@@ -196,8 +207,11 @@ void RunDocker::run(std::size_t session_id,
       }
     }
     logs::log(logs::info, "Stopped container: {}", docker_container->name);
-    std::filesystem::remove_all(udev_base_path);
-    terminate_handler.unregister();
+    try {
+      std::filesystem::remove_all(udev_base_path);
+    } catch (const std::filesystem::filesystem_error &e) {
+      logs::log(logs::warning, "Failed to remove udev base path: {}", e.what());
+    }
   }
 }
 

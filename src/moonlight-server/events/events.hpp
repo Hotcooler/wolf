@@ -31,22 +31,24 @@ struct PairSignal {
 };
 
 struct PlugDeviceEvent {
-  std::size_t session_id;
+  std::string session_id;
   std::vector<std::map<std::string, std::string>> udev_events;
   std::vector<std::pair<std::string, std::vector<std::string>>> udev_hw_db_entries;
 };
 
 struct UnplugDeviceEvent {
-  std::size_t session_id;
+  std::string session_id;
   std::vector<std::map<std::string, std::string>> udev_events;
   std::vector<std::pair<std::string, std::vector<std::string>>> udev_hw_db_entries;
 };
 
 using devices_atom_queue = TSQueue<immer::box<events::PlugDeviceEvent>>;
+using RunnerTypes = rfl::TaggedUnion<"type", wolf::config::AppCMD, wolf::config::AppDocker>;
 
 struct Runner {
+  virtual ~Runner() = default;
 
-  virtual void run(std::size_t session_id,
+  virtual void run(std::string_view session_id,
                    std::string_view app_state_folder,
                    std::shared_ptr<events::devices_atom_queue> plugged_devices_queue,
                    const immer::array<std::string> &virtual_inputs,
@@ -54,8 +56,7 @@ struct Runner {
                    const immer::map<std::string, std::string> &env_variables,
                    std::string_view render_node) = 0;
 
-  virtual rfl::TaggedUnion<"type", wolf::config::AppCMD, wolf::config::AppDocker, wolf::config::AppChildSession>
-  serialize() = 0;
+  virtual RunnerTypes serialize() const = 0;
 };
 
 struct App {
@@ -86,6 +87,81 @@ struct Profile {
  * which is going to be the one that holds the apps that will be shown in the Moonlight UI
  */
 constexpr std::string_view MOONLIGHT_PROFILE_ID = "moonlight-profile-id";
+
+struct Lobby {
+  const std::string id;
+  const std::string name;
+  const bool multi_user;
+  const bool stop_when_everyone_leaves;
+  /**
+   * The app that is currently running in the lobby
+   */
+  std::shared_ptr<Runner> runner;
+
+  /**
+   * A list of all currently connected sessions by their session_id
+   */
+  std::shared_ptr<immer::atom<immer::vector<immer::box<std::string /* session_id */>>>> connected_sessions =
+      std::make_shared<immer::atom<immer::vector<immer::box<std::string>>>>();
+
+  /**
+   * The wayland display that is currently being used by the lobby
+   */
+  std::shared_ptr<immer::atom<virtual_display::wl_state_ptr>> wayland_display =
+      std::make_shared<immer::atom<virtual_display::wl_state_ptr>>();
+
+  /**
+   * The audio sink that is currently being used by the lobby
+   */
+  std::shared_ptr<immer::atom<std::shared_ptr<audio::VSink>>> audio_sink =
+      std::make_shared<immer::atom<std::shared_ptr<audio::VSink>>>();
+
+  /**
+   * A queue of devices that will be plugged into the runner when ready
+   */
+  std::shared_ptr<events::devices_atom_queue> plugged_devices_queue = std::make_shared<events::devices_atom_queue>();
+};
+
+struct VideoSettings {
+  int width;
+  int height;
+  int refresh_rate;
+  std::string wayland_render_node;
+  std::string runner_render_node;
+};
+
+struct CreateLobbyEvent {
+  const std::string name;
+  const bool multi_user;
+  const bool stop_when_everyone_leaves;
+
+  const VideoSettings video_settings;
+
+  struct AudioSettings {
+    int channel_count;
+  } const audio_settings;
+
+  const config::ClientSettings client_settings = {};
+  const std::string runner_state_folder;
+  /**
+   * The app that will be run in the lobby
+   */
+  std::shared_ptr<Runner> runner;
+};
+
+struct JoinLobbyEvent {
+  const std::string lobby_id;
+  const std::size_t moonlight_session_id;
+};
+
+struct LeaveLobbyEvent {
+  const std::string lobby_id;
+  const std::size_t moonlight_session_id;
+};
+
+struct StopLobbyEvent {
+  const std::string lobby_id;
+};
 
 using MouseTypes = std::variant<input::Mouse, virtual_display::WaylandMouse>;
 using KeyboardTypes = std::variant<input::Keyboard, virtual_display::WaylandKeyboard>;
@@ -165,6 +241,14 @@ struct StopStreamEvent {
   std::size_t session_id;
 };
 
+struct SwitchStreamProducerEvents {
+  std::size_t session_id;
+  /**
+   * The source ID of the interpipe that will be used to produce the stream.
+   */
+  std::string interpipe_src_id;
+};
+
 struct RTPVideoPingEvent {
   std::string client_ip;
   unsigned short client_port;
@@ -195,7 +279,12 @@ using EventBusHandlers = dp::handler_registration<immer::box<PlugDeviceEvent>,
                                                   immer::box<StopStreamEvent>,
                                                   immer::box<RTPVideoPingEvent>,
                                                   immer::box<RTPAudioPingEvent>,
-                                                  immer::box<StartRunner>>;
+                                                  immer::box<StartRunner>,
+                                                  immer::box<JoinLobbyEvent>,
+                                                  immer::box<LeaveLobbyEvent>,
+                                                  immer::box<CreateLobbyEvent>,
+                                                  immer::box<StopLobbyEvent>,
+                                                  immer::box<SwitchStreamProducerEvents>>;
 using EventBusType = dp::event_bus<immer::box<PlugDeviceEvent>,
                                    immer::box<PairSignal>,
                                    immer::box<UnplugDeviceEvent>,
@@ -208,7 +297,12 @@ using EventBusType = dp::event_bus<immer::box<PlugDeviceEvent>,
                                    immer::box<StopStreamEvent>,
                                    immer::box<RTPVideoPingEvent>,
                                    immer::box<RTPAudioPingEvent>,
-                                   immer::box<StartRunner>>;
+                                   immer::box<StartRunner>,
+                                   immer::box<JoinLobbyEvent>,
+                                   immer::box<LeaveLobbyEvent>,
+                                   immer::box<CreateLobbyEvent>,
+                                   immer::box<StopLobbyEvent>,
+                                   immer::box<SwitchStreamProducerEvents>>;
 using EventsVariant = std::variant<immer::box<PlugDeviceEvent>,
                                    immer::box<PairSignal>,
                                    immer::box<UnplugDeviceEvent>,
@@ -221,7 +315,12 @@ using EventsVariant = std::variant<immer::box<PlugDeviceEvent>,
                                    immer::box<StopStreamEvent>,
                                    immer::box<RTPVideoPingEvent>,
                                    immer::box<RTPAudioPingEvent>,
-                                   immer::box<StartRunner>>;
+                                   immer::box<StartRunner>,
+                                   immer::box<JoinLobbyEvent>,
+                                   immer::box<LeaveLobbyEvent>,
+                                   immer::box<CreateLobbyEvent>,
+                                   immer::box<StopLobbyEvent>,
+                                   immer::box<SwitchStreamProducerEvents>>;
 
 /**
  * A StreamSession is created when a Moonlight user call `launch`

@@ -147,6 +147,8 @@ struct AppState {
    */
   std::shared_ptr<events::EventBusType> event_bus;
 
+  std::shared_ptr<immer::atom<immer::vector<events::Lobby>>> lobbies;
+
   /**
    * A list of all currently running (and paused) streaming sessions
    */

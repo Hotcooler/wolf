@@ -121,7 +121,7 @@ struct StreamSessionHandleInputRequest {
 
 struct RunnerStartRequest {
   bool stop_stream_when_over;
-  rfl::TaggedUnion<"type", wolf::config::AppCMD, wolf::config::AppDocker, wolf::config::AppChildSession> runner;
+  events::RunnerTypes runner;
   std::string session_id;
 };
 

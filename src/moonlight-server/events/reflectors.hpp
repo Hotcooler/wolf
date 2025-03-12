@@ -29,6 +29,17 @@ template <> struct Reflector<events::PairSignal> {
   }
 };
 
+template <> struct Reflector<events::Runner> {
+  using ReflType = events::RunnerTypes;
+  static ReflType from(const events::Runner &v) {
+    return v.serialize();
+  }
+  static std::shared_ptr<events::Runner>
+  to(const ReflType &v, const std::shared_ptr<events::EventBusType> &ev_bus, state::SessionsAtoms running_sessions) {
+    return state::get_runner(v, ev_bus);
+  }
+};
+
 template <> struct Reflector<events::App> {
   struct ReflType {
     const std::string title;
@@ -45,7 +56,7 @@ template <> struct Reflector<events::App> {
     std::string opus_gst_pipeline;
     bool start_virtual_compositor;
     bool start_audio_server;
-    rfl::TaggedUnion<"type", AppCMD, AppDocker, AppChildSession> runner;
+    Reflector<events::Runner>::ReflType runner;
   };
 
   static ReflType from(const events::App &v) {
@@ -65,7 +76,7 @@ template <> struct Reflector<events::App> {
 
   static events::App
   to(const ReflType &app, const std::shared_ptr<events::EventBusType> &ev_bus, state::SessionsAtoms running_sessions) {
-    auto runner = state::get_runner(app.runner, ev_bus, running_sessions);
+    auto runner = Reflector<events::Runner>::to(app.runner, ev_bus, running_sessions);
     return events::App{
         .base = {.title = app.title, .id = app.id, .support_hdr = app.support_hdr, .icon_png_path = app.icon_png_path},
         .h264_gst_pipeline = app.h264_gst_pipeline,
@@ -114,7 +125,7 @@ template <> struct Reflector<events::Profile> {
 template <> struct Reflector<events::StartRunner> {
   struct ReflType {
     bool stop_stream_when_over;
-    rfl::TaggedUnion<"type", AppCMD, AppDocker, AppChildSession> runner;
+    events::RunnerTypes runner;
     std::string session_id;
   };
 

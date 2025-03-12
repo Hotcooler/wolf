@@ -360,9 +360,7 @@ void UnixSocketServer::endpoint_RunnerStart(const wolf::api::HTTPRequest &req, s
       return;
     }
 
-    auto runner = state::get_runner(event.value().runner,
-                                    this->state_->app_state->event_bus,
-                                    this->state_->app_state->running_sessions);
+    auto runner = state::get_runner(event.value().runner, this->state_->app_state->event_bus);
     state_->app_state->event_bus->fire_event(immer::box<events::StartRunner>(
         events::StartRunner{.stop_stream_when_over = event.value().stop_stream_when_over,
                             .runner = runner,

@@ -163,14 +163,14 @@ std::shared_ptr<events::JoypadTypes> create_new_joypad(const events::StreamSessi
               controller_number,
               (int)final_type);
 
-    events::PlugDeviceEvent unplug_ev{.session_id = session.session_id};
+    events::PlugDeviceEvent plug_ev{.session_id = std::to_string(session.session_id)};
     std::visit(
-        [&unplug_ev](auto &pad) {
-          unplug_ev.udev_events = pad.get_udev_events();
-          unplug_ev.udev_hw_db_entries = pad.get_udev_hw_db_entries();
+        [&plug_ev](auto &pad) {
+          plug_ev.udev_events = pad.get_udev_events();
+          plug_ev.udev_hw_db_entries = pad.get_udev_hw_db_entries();
         },
         *new_pad);
-    session.event_bus->fire_event(immer::box<events::PlugDeviceEvent>(unplug_ev));
+    session.event_bus->fire_event(immer::box<events::PlugDeviceEvent>(plug_ev));
     return joypads.set(controller_number, new_pad);
   });
   return new_pad;
@@ -189,7 +189,7 @@ bool create_pen_tablet(events::StreamSession &session) {
   }
   auto tablet_ptr = std::make_shared<PenTablet>(std::move(*tablet));
   session.event_bus->fire_event(immer::box<events::PlugDeviceEvent>(
-      events::PlugDeviceEvent{.session_id = session.session_id,
+      events::PlugDeviceEvent{.session_id = std::to_string(session.session_id),
                               .udev_events = tablet_ptr->get_udev_events(),
                               .udev_hw_db_entries = tablet_ptr->get_udev_hw_db_entries()}));
   if (auto wl = *session.wayland_display->load()) {
@@ -214,7 +214,7 @@ bool create_touch_screen(events::StreamSession &session) {
   }
   auto touch_screen = std::make_shared<TouchScreen>(std::move(*touch));
   session.event_bus->fire_event(immer::box<events::PlugDeviceEvent>(
-      events::PlugDeviceEvent{.session_id = session.session_id,
+      events::PlugDeviceEvent{.session_id = std::to_string(session.session_id),
                               .udev_events = touch_screen->get_udev_events(),
                               .udev_hw_db_entries = touch_screen->get_udev_hw_db_entries()}));
   if (auto wl = *session.wayland_display->load()) {
@@ -525,7 +525,7 @@ void controller_multi(const CONTROLLER_MULTI_PACKET &pkt,
     if (!(pkt.active_gamepad_mask & (1 << pkt.controller_number))) {
       logs::log(logs::debug, "Removing joypad {}", pkt.controller_number);
       // Send the event downstream, Docker will pick it up and remove the device
-      events::UnplugDeviceEvent unplug_ev{.session_id = session.session_id};
+      events::UnplugDeviceEvent unplug_ev{.session_id = std::to_string(session.session_id)};
       std::visit(
           [&unplug_ev](auto &pad) {
             unplug_ev.udev_events = pad.get_udev_events();

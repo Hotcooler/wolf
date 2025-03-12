@@ -76,7 +76,7 @@ void app_src_enough_data(GstElement *pipeline, guint size, GstAppDataState *data
 using namespace wolf::core::gstreamer;
 using namespace wolf::core;
 
-void start_video_producer(std::size_t session_id,
+void start_video_producer(const std::string &session_id,
                           wolf::core::virtual_display::wl_state_ptr wl_state,
                           const wolf::core::virtual_display::DisplayMode &display_mode,
                           const std::shared_ptr<events::EventBusType> &event_bus) {
@@ -114,7 +114,7 @@ void start_video_producer(std::size_t session_id,
 
     auto stop_handler = event_bus->register_handler<immer::box<events::StopStreamEvent>>(
         [session_id, loop](const immer::box<events::StopStreamEvent> &ev) {
-          if (ev->session_id == session_id) {
+          if (std::to_string(ev->session_id) == session_id) {
             logs::log(logs::debug, "[GSTREAMER] Stopping video producer: {}", session_id);
             g_main_loop_quit(loop.get());
           }
@@ -124,7 +124,7 @@ void start_video_producer(std::size_t session_id,
   });
 }
 
-void start_audio_producer(std::size_t session_id,
+void start_audio_producer(const std::string &session_id,
                           const std::shared_ptr<events::EventBusType> &event_bus,
                           int channel_count,
                           const std::string &sink_name,
@@ -142,7 +142,7 @@ void start_audio_producer(std::size_t session_id,
   run_pipeline(pipeline, [=](auto pipeline, auto loop) {
     auto stop_handler = event_bus->register_handler<immer::box<events::StopStreamEvent>>(
         [session_id, loop](const immer::box<events::StopStreamEvent> &ev) {
-          if (ev->session_id == session_id) {
+          if (std::to_string(ev->session_id) == session_id) {
             logs::log(logs::debug, "[GSTREAMER] Stopping audio producer: {}", session_id);
             g_main_loop_quit(loop.get());
           }
@@ -228,6 +228,26 @@ void start_streaming_video(const immer::box<events::VideoSession> &video_session
           }
         });
 
+    auto switch_producer_handler = event_bus->register_handler<immer::box<events::SwitchStreamProducerEvents>>(
+        [sess_id = video_session->session_id,
+         pipeline](const immer::box<events::SwitchStreamProducerEvents> &switch_ev) {
+          if (switch_ev->session_id == sess_id) {
+            logs::log(logs::debug,
+                      "[GSTREAMER] Switching video producer pipeline for {} to {}",
+                      sess_id,
+                      switch_ev->interpipe_src_id);
+            /* Grab a reference to the interpipesrc */
+            if (auto src = gst_bin_get_by_name(GST_BIN(pipeline.get()), "interpipesrc")) {
+              /* Perform the switch */
+              auto video_interpipe = fmt::format("{}_video", switch_ev->interpipe_src_id);
+              g_object_set(src, "listen-to", video_interpipe, nullptr);
+              gst_object_unref(src);
+            } else {
+              logs::log(logs::warning, "[GSTREAMER] Failed to get interpipesrc");
+            }
+          }
+        });
+
     auto stop_handler = event_bus->register_handler<immer::box<events::StopStreamEvent>>(
         [sess_id = video_session->session_id, loop](const immer::box<events::StopStreamEvent> &ev) {
           if (ev->session_id == sess_id) {
@@ -238,6 +258,7 @@ void start_streaming_video(const immer::box<events::VideoSession> &video_session
 
     return immer::array<immer::box<events::EventBusHandlers>>{std::move(idr_handler),
                                                               std::move(pause_handler),
+                                                              std::move(switch_producer_handler),
                                                               std::move(stop_handler)};
   });
 }
@@ -289,6 +310,25 @@ void start_streaming_audio(const immer::box<events::AudioSession> &audio_session
              */
 
             g_main_loop_quit(loop.get());
+          }
+        });
+
+    auto switch_producer_handler = event_bus->register_handler<immer::box<events::SwitchStreamProducerEvents>>(
+        [session_id, pipeline](const immer::box<events::SwitchStreamProducerEvents> &switch_ev) {
+          if (switch_ev->session_id == session_id) {
+            logs::log(logs::debug,
+                      "[GSTREAMER] Switching audio producer for {} to {}",
+                      session_id,
+                      switch_ev->interpipe_src_id);
+
+            if (auto src = gst_bin_get_by_name(GST_BIN(pipeline.get()), "interpipesrc")) {
+              /* Perform the switch */
+              auto audio_interpipe = fmt::format("{}_audio", switch_ev->interpipe_src_id);
+              g_object_set(src, "listen-to", audio_interpipe.c_str(), nullptr);
+              gst_object_unref(src);
+            } else {
+              logs::log(logs::error, "[GSTREAMER] Failed to get interpipe src for {}", session_id);
+            }
           }
         });
 

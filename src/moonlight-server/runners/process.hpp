@@ -17,7 +17,7 @@ public:
   explicit RunProcess(std::shared_ptr<events::EventBusType> ev_bus, std::string run_cmd)
       : run_cmd(std::move(run_cmd)), ev_bus(std::move(ev_bus)) {}
 
-  void run(std::size_t session_id,
+  void run(std::string_view session_id,
            std::string_view app_state_folder,
            std::shared_ptr<events::devices_atom_queue> plugged_devices_queue,
            const immer::array<std::string> &virtual_inputs,
@@ -25,8 +25,7 @@ public:
            const immer::map<std::string, std::string> &env_variables,
            std::string_view render_node) override;
 
-  rfl::TaggedUnion<"type", wolf::config::AppCMD, wolf::config::AppDocker, wolf::config::AppChildSession>
-  serialize() override {
+  events::RunnerTypes serialize() const override {
     return wolf::config::AppCMD{.run_cmd = run_cmd};
   }
 

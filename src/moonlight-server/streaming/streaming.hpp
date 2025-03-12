@@ -19,12 +19,12 @@ namespace streaming {
 
 using namespace wolf::core;
 
-void start_video_producer(std::size_t session_id,
+void start_video_producer(const std::string &session_id,
                           wolf::core::virtual_display::wl_state_ptr wl_state,
                           const wolf::core::virtual_display::DisplayMode &display_mode,
                           const std::shared_ptr<events::EventBusType> &event_bus);
 
-void start_audio_producer(std::size_t session_id,
+void start_audio_producer(const std::string &session_id,
                           const std::shared_ptr<events::EventBusType> &event_bus,
                           int channel_count,
                           const std::string &sink_name,
