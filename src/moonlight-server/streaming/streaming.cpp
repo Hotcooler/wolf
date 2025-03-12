@@ -240,7 +240,7 @@ void start_streaming_video(const immer::box<events::VideoSession> &video_session
             if (auto src = gst_bin_get_by_name(GST_BIN(pipeline.get()), "interpipesrc")) {
               /* Perform the switch */
               auto video_interpipe = fmt::format("{}_video", switch_ev->interpipe_src_id);
-              g_object_set(src, "listen-to", video_interpipe, nullptr);
+              g_object_set(src, "listen-to", video_interpipe.c_str(), nullptr);
               gst_object_unref(src);
             } else {
               logs::log(logs::warning, "[GSTREAMER] Failed to get interpipesrc");

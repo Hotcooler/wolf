@@ -11,7 +11,7 @@ find_package(PkgConfig)
 FetchContent_Declare(
         fmtlib
         GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-        GIT_TAG 11.0.1)
+        GIT_TAG 11.1.4)
 FetchContent_MakeAvailable(fmtlib) # Download and build
 target_link_libraries_system(wolf_runner PUBLIC fmt::fmt-header-only)
 
@@ -30,21 +30,23 @@ FetchContent_Declare(
         tomlplusplus
         GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
         GIT_TAG        v3.4.0
+        OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(tomlplusplus)
-target_link_libraries(wolf_runner PUBLIC tomlplusplus::tomlplusplus)
 
 # Serialization
 FetchContent_Declare(
         reflect-cpp
         GIT_REPOSITORY https://github.com/getml/reflect-cpp
-        GIT_TAG 54c2a84
+        GIT_TAG c118963
 )
+set(REFLECTCPP_USE_VCPKG OFF)
+
 set(REFLECTCPP_BSON OFF)
 set(REFLECTCPP_CBOR OFF)
 set(REFLECTCPP_FLEXBUFFERS OFF)
-set(REFLECTCPP_MSGPACK OFF) # Only works with vcpkg, doing it manually
-set(REFLECTCPP_TOML OFF)
+set(REFLECTCPP_MSGPACK OFF)
+set(REFLECTCPP_TOML ON)
 set(REFLECTCPP_XML OFF)
 set(REFLECTCPP_YAML OFF)
 
@@ -56,7 +58,7 @@ target_link_libraries(wolf_runner PUBLIC reflectcpp)
 FetchContent_Declare(
         simplewebserver
         GIT_REPOSITORY https://gitlab.com/eidheim/Simple-Web-Server.git
-        GIT_TAG bdb1057)
+        GIT_TAG 4abe349)
 FetchContent_MakeAvailable(simplewebserver)
 target_link_libraries_system(wolf_runner PUBLIC simple-web-server)
 
@@ -73,7 +75,7 @@ set(CMAKE_PROJECT_INCLUDE_BEFORE "${PROJECT_SOURCE_DIR}/cmake/EnableCMP0048.cmak
 FetchContent_Declare(
         enet
         GIT_REPOSITORY https://github.com/cgutman/enet
-        GIT_TAG 47e42dbf422396ce308a03b5a95ec056f0f0180c)
+        GIT_TAG 44c85e16279553d9c052e572bcbfcd745fb74abf)
 FetchContent_MakeAvailable(enet)
 target_link_libraries_system(wolf_runner PUBLIC enet)
 unset(CMAKE_PROJECT_INCLUDE_BEFORE)
@@ -82,7 +84,7 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 FetchContent_Declare(
         cpptrace
         GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-        GIT_TAG 448c325
+        GIT_TAG v0.8.2
 )
 
 pkg_check_modules(LIBUNWIND QUIET libunwind)
@@ -91,6 +93,12 @@ if (LIBUNWIND_FOUND)
 else ()
     message(WARNING "Missing libunwind, stacktraces will not be available.")
 endif ()
+set(ZSTD_BUILD_SHARED ${BUILD_SHARED_LIBS})
+set(ZSTD_BUILD_STATIC OFF)
+
+if(NOT BUILD_SHARED_LIBS)
+    set(ZSTD_BUILD_STATIC ON)
+endif()
 FetchContent_MakeAvailable(cpptrace)
 
 ##############################

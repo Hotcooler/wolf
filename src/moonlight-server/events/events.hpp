@@ -92,7 +92,7 @@ struct Lobby {
   const std::string id;
   const std::string name;
   const bool multi_user;
-  const bool stop_when_everyone_leaves;
+  const bool stop_when_everyone_leaves; // TODO: implement this
   /**
    * The app that is currently running in the lobby
    */

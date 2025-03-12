@@ -32,6 +32,20 @@ if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         add_compile_options("-fno-inline")
     endif ()
 
+    if(POLICY CMP0167)
+        cmake_policy(SET CMP0167 NEW)
+        set(CMAKE_POLICY_DEFAULT_CMP0167 NEW)
+    endif()
+
+    if(POLICY CMP0169)
+        cmake_policy(SET CMP0169 OLD)
+    endif()
+
+    if(POLICY CMP0077)
+        cmake_policy(SET CMP0077 NEW)
+        set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    endif()
+
     # set(Boost_USE_STATIC_LIBS ON)
 
     # Testing only available if this is the main app

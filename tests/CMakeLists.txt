@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16...3.24)
 FetchContent_Declare(
         Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG v3.3.2
+        GIT_TAG v3.8.0
 )
 
 FetchContent_MakeAvailable(Catch2)
@@ -105,6 +105,7 @@ target_link_libraries_system(wolftests PRIVATE
 
 ## Test assets
 configure_file(assets/config.test.toml ${CMAKE_CURRENT_BINARY_DIR}/config.test.toml COPYONLY)
+configure_file(assets/config.test.toml ${CMAKE_CURRENT_BINARY_DIR}/config.test.EDITED.toml COPYONLY)
 
 # See: https://github.com/catchorg/Catch2/blob/devel/docs/cmake-integration.md
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)

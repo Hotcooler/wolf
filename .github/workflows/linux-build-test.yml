@@ -138,15 +138,15 @@ jobs:
       matrix:
         cxx:
           - g++-12
-          - clang++-16
+          - clang++
         build_type: [ Release ]
         shared: [ true, false ]
         std: [ 20 ]
         include:
           - cxx: g++-12
             other_pkgs: [ g++-12 ]
-          - cxx: clang++-16
-            other_pkgs: [ clang-16 ]
+          - cxx: clang++
+            other_pkgs: [ clang-18 ]
 
 
     steps:

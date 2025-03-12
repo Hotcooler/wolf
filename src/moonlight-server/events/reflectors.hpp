@@ -34,8 +34,8 @@ template <> struct Reflector<events::Runner> {
   static ReflType from(const events::Runner &v) {
     return v.serialize();
   }
-  static std::shared_ptr<events::Runner>
-  to(const ReflType &v, const std::shared_ptr<events::EventBusType> &ev_bus, state::SessionsAtoms running_sessions) {
+
+  static std::shared_ptr<events::Runner> to(const ReflType &v, const std::shared_ptr<events::EventBusType> &ev_bus) {
     return state::get_runner(v, ev_bus);
   }
 };
@@ -74,9 +74,8 @@ template <> struct Reflector<events::App> {
             .runner = v.runner->serialize()};
   }
 
-  static events::App
-  to(const ReflType &app, const std::shared_ptr<events::EventBusType> &ev_bus, state::SessionsAtoms running_sessions) {
-    auto runner = Reflector<events::Runner>::to(app.runner, ev_bus, running_sessions);
+  static events::App to(const ReflType &app, const std::shared_ptr<events::EventBusType> &ev_bus) {
+    auto runner = Reflector<events::Runner>::to(app.runner, ev_bus);
     return events::App{
         .base = {.title = app.title, .id = app.id, .support_hdr = app.support_hdr, .icon_png_path = app.icon_png_path},
         .h264_gst_pipeline = app.h264_gst_pipeline,
@@ -107,11 +106,10 @@ template <> struct Reflector<events::Profile> {
     return {.name = v.name, .id = v.id, .icon_png_path = v.icon_png_path, .apps = apps};
   }
 
-  static events::Profile
-  to(const ReflType &v, const std::shared_ptr<events::EventBusType> &ev_bus, state::SessionsAtoms running_sessions) {
+  static events::Profile to(const ReflType &v, const std::shared_ptr<events::EventBusType> &ev_bus) {
     auto parsed_apps = v.apps | //
-                       ranges::views::transform([ev_bus, running_sessions](const auto &app) {
-                         return immer::box<events::App>(Reflector<events::App>::to(app, ev_bus, running_sessions));
+                       ranges::views::transform([ev_bus](const auto &app) {
+                         return immer::box<events::App>(Reflector<events::App>::to(app, ev_bus));
                        }) |
                        ranges::to<immer::vector<immer::box<events::App>>>();
 
