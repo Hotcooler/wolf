@@ -284,17 +284,21 @@ Config load_or_default(const std::string &source,
   auto cfg = rfl::toml::load<WolfConfig, rfl::DefaultIfMissing>(source).value();
 
   auto default_gst_video_settings = cfg.gstreamer.video;
-  if (default_gst_video_settings.default_source.find("appsrc") != std::string::npos) {
-    logs::log(logs::debug, "Found appsrc in default_source, migrating to interpipesrc");
-    default_gst_video_settings.default_source = "interpipesrc listen-to={session_id}_video is-live=true "
-                                                "stream-sync=restart-ts max-buffers=1 block=false";
+  if (default_gst_video_settings.default_source.find("appsrc") != std::string::npos ||
+      default_gst_video_settings.default_source.find("name=interpipesrc") == std::string::npos) {
+    logs::log(logs::debug, "Found outdated default_source, migrating to interpipesrc");
+    default_gst_video_settings.default_source =
+        "interpipesrc name=interpipesrc listen-to={session_id}_video is-live=true "
+        "stream-sync=restart-ts max-buffers=1 block=false";
   }
 
   auto default_gst_audio_settings = cfg.gstreamer.audio;
-  if (default_gst_audio_settings.default_source.find("appsrc") != std::string::npos) {
-    logs::log(logs::debug, "Found pulsesrc in default_source, migrating to interpipesrc");
-    default_gst_audio_settings.default_source = "interpipesrc listen-to={session_id}_audio is-live=true "
-                                                "stream-sync=restart-ts max-bytes=0 max-buffers=3 block=false";
+  if (default_gst_audio_settings.default_source.find("appsrc") != std::string::npos ||
+      default_gst_audio_settings.default_source.find("name=interpipesrc") == std::string::npos) {
+    logs::log(logs::debug, "Found outdated default_source, migrating to interpipesrc");
+    default_gst_audio_settings.default_source =
+        "interpipesrc name=interpipesrc listen-to={session_id}_audio is-live=true "
+        "stream-sync=restart-ts max-bytes=0 max-buffers=3 block=false";
   }
 
   auto default_gst_encoder_settings = default_gst_video_settings.defaults;

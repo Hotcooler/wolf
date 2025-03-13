@@ -153,7 +153,6 @@ setup_lobbies_handlers(const immer::box<state::AppState> &app_state,
         }
         // TODO: hotplug pen_tablet and touch_screen
 
-        // TODO: set a name for the interpipesrc element in `config.toml`
         // Switch audio/video gstreamer stream producers
         app_state->event_bus->fire_event(immer::box<events::SwitchStreamProducerEvents>{
             events::SwitchStreamProducerEvents{.session_id = session->session_id, .interpipe_src_id = lobby->id}});
