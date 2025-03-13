@@ -450,8 +450,8 @@ TEST_CASE("Lobbies APIs", "[API]") {
                                         .video_settings = {.width = 1920,
                                                            .height = 1080,
                                                            .refresh_rate = 60,
-                                                           .runner_render_node = "runner_render_node",
-                                                           .wayland_render_node = "/dev/dri/renderD128"},
+                                                           .wayland_render_node = "/dev/dri/renderD128",
+                                                           .runner_render_node = "runner_render_node"},
                                         .audio_settings = {.channel_count = 2},
                                         .runner_state_folder = "runner_state_folder",
                                         .runner = wolf::config::AppCMD{.run_cmd = "sleep 10"}};
