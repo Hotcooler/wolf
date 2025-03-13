@@ -19,6 +19,9 @@ struct WaylandState {
 wl_state_ptr create_wayland_display(const immer::array<std::string> &input_devices, const std::string &render_node) {
   logs::log(logs::debug, "[WAYLAND] Creating wayland display");
   auto w_display = display_init(render_node.c_str());
+  if (!w_display) {
+    return nullptr;
+  }
   immer::vector_transient<std::string> final_devices;
   immer::vector_transient<std::string> final_env;
 

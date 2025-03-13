@@ -130,6 +130,10 @@ struct VideoSettings {
   std::string runner_render_node;
 };
 
+struct AudioSettings {
+  int channel_count;
+};
+
 struct CreateLobbyEvent {
   const std::string name;
   const bool multi_user;
@@ -137,9 +141,7 @@ struct CreateLobbyEvent {
 
   const VideoSettings video_settings;
 
-  struct AudioSettings {
-    int channel_count;
-  } const audio_settings;
+  const AudioSettings audio_settings;
 
   const config::ClientSettings client_settings = {};
   const std::string runner_state_folder;

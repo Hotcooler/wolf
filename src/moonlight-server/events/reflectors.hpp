@@ -161,4 +161,27 @@ template <> struct Reflector<events::StreamSession> {
   }
 };
 
+template <> struct Reflector<events::Lobby> {
+  struct ReflType {
+    std::string id;
+    std::string name;
+    bool multi_user;
+    bool stop_when_everyone_leaves;
+    Reflector<events::Runner>::ReflType runner;
+    std::vector<std::string> connected_sessions;
+  };
+
+  static ReflType from(const events::Lobby &v) {
+    immer::vector<immer::box<std::string>> connected_sessions = v.connected_sessions->load();
+    return {.id = v.id,
+            .name = v.name,
+            .multi_user = v.multi_user,
+            .stop_when_everyone_leaves = v.stop_when_everyone_leaves,
+            .runner = v.runner->serialize(),
+            .connected_sessions = connected_sessions |
+                                  ranges::views::transform([](const immer::box<std::string> &v) { return *v; }) |
+                                  ranges::to_vector};
+  }
+};
+
 } // namespace rfl

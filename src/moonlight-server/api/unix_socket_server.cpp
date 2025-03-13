@@ -241,6 +241,63 @@ UnixSocketServer::UnixSocketServer(boost::asio::io_context &io_context,
                    });
 
   /**
+   * Lobbies API
+   */
+
+  state_->http.add(HTTPMethod::GET,
+                   "/api/v1/lobbies",
+                   {
+                       .summary = "List all lobbies",
+                       .response_description = {{200, {.json_schema = rfl::json::to_schema<LobbiesResponse>()}},
+                                                {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
+                       .handler = [this](auto req, auto socket) { endpoint_Lobbies(req, socket); },
+                   });
+
+  state_->http.add(
+      HTTPMethod::POST,
+      "/api/v1/lobbies/create",
+      {
+          .summary = "Create a new lobby",
+          .request_description = APIDescription{.json_schema = rfl::json::to_schema<CreateLobbyRequest>()},
+          .response_description = {{200, {.json_schema = rfl::json::to_schema<LobbyCreateResponse>()}},
+                                   {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
+          .handler = [this](auto req, auto socket) { endpoint_LobbyCreate(req, socket); },
+      });
+
+  state_->http.add(
+      HTTPMethod::POST,
+      "/api/v1/lobbies/join",
+      {
+          .summary = "Join a lobby",
+          .request_description = APIDescription{.json_schema = rfl::json::to_schema<events::JoinLobbyEvent>()},
+          .response_description = {{200, {.json_schema = rfl::json::to_schema<GenericSuccessResponse>()}},
+                                   {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
+          .handler = [this](auto req, auto socket) { endpoint_LobbyJoin(req, socket); },
+      });
+
+  state_->http.add(
+      HTTPMethod::POST,
+      "/api/v1/lobbies/leave",
+      {
+          .summary = "Leave a lobby",
+          .request_description = APIDescription{.json_schema = rfl::json::to_schema<events::LeaveLobbyEvent>()},
+          .response_description = {{200, {.json_schema = rfl::json::to_schema<GenericSuccessResponse>()}},
+                                   {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
+          .handler = [this](auto req, auto socket) { endpoint_LobbyLeave(req, socket); },
+      });
+
+  state_->http.add(
+      HTTPMethod::POST,
+      "/api/v1/lobbies/stop",
+      {
+          .summary = "Stop a lobby",
+          .request_description = APIDescription{.json_schema = rfl::json::to_schema<events::StopLobbyEvent>()},
+          .response_description = {{200, {.json_schema = rfl::json::to_schema<GenericSuccessResponse>()}},
+                                   {500, {.json_schema = rfl::json::to_schema<GenericErrorResponse>()}}},
+          .handler = [this](auto req, auto socket) { endpoint_LobbyStop(req, socket); },
+      });
+
+  /**
    * OpenAPI schema
    */
 

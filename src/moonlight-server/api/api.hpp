@@ -119,6 +119,32 @@ struct StreamSessionHandleInputRequest {
       input_packet_hex;
 };
 
+struct CreateLobbyRequest {
+  std::string name;
+  bool multi_user = true;
+  bool stop_when_everyone_leaves = true;
+
+  events::VideoSettings video_settings;
+  events::AudioSettings audio_settings;
+
+  rfl::Description<"Client settings to update (only specified fields will be updated)",
+                   std::optional<PartialClientSettings>>
+      client_settings;
+
+  std::string runner_state_folder;
+  events::RunnerTypes runner;
+};
+
+struct LobbiesResponse {
+  bool success = true;
+  std::vector<rfl::Reflector<events::Lobby>::ReflType> lobbies;
+};
+
+struct LobbyCreateResponse {
+  bool success = true;
+  std::string lobby_id;
+};
+
 struct RunnerStartRequest {
   bool stop_stream_when_over;
   events::RunnerTypes runner;
@@ -162,6 +188,12 @@ private:
   void endpoint_StreamSessionPause(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_StreamSessionStop(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
   void endpoint_StreamSessionHandleInput(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+
+  void endpoint_Lobbies(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+  void endpoint_LobbyCreate(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+  void endpoint_LobbyJoin(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+  void endpoint_LobbyLeave(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
+  void endpoint_LobbyStop(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
 
   void endpoint_RunnerStart(const HTTPRequest &req, std::shared_ptr<UnixSocket> socket);
 

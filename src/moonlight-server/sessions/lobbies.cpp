@@ -37,14 +37,18 @@ setup_lobbies_handlers(const immer::box<state::AppState> &app_state,
 
           auto wl_state =
               virtual_display::create_wayland_display({}, lobby_settings->video_settings.wayland_render_node);
-          virtual_display::set_resolution(*wl_state, display_mode);
+          if (wl_state) {
+            virtual_display::set_resolution(*wl_state, display_mode);
 
-          lobby->wayland_display->store(wl_state);
+            lobby->wayland_display->store(wl_state);
 
-          // Start Gstreamer producer pipeline
-          std::thread([lobby, wl_state, display_mode, ev_bus]() {
-            streaming::start_video_producer(lobby->id, wl_state, display_mode, ev_bus);
-          }).detach();
+            // Start Gstreamer producer pipeline
+            std::thread([lobby, wl_state, display_mode, ev_bus]() {
+              streaming::start_video_producer(lobby->id, wl_state, display_mode, ev_bus);
+            }).detach();
+          } else {
+            logs::log(logs::error, "[LOBBY] Failed to create wayland compositor");
+          }
         }
 
         { // Create audio virtual sink

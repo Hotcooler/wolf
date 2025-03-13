@@ -56,6 +56,10 @@ setup_moonlight_handlers(const immer::box<state::AppState> &app_state,
 
           auto render_node = session->app->render_node;
           auto wl_state = virtual_display::create_wayland_display({}, render_node);
+          if (!wl_state) {
+            logs::log(logs::error, "Unable to create wayland compositor");
+            return;
+          }
           virtual_display::set_resolution(
               *wl_state,
               {session->display_mode.width, session->display_mode.height, session->display_mode.refreshRate});

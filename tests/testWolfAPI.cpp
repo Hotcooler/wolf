@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 #include <helpers/tsqueue.hpp>
 #include <rfl/toml.hpp>
+#include <sessions/handlers.hpp>
 #include <state/config.hpp>
 
 using Catch::Matchers::ContainsSubstring;
@@ -407,6 +408,132 @@ TEST_CASE("Sessions APIs", "[API]") {
   response = req(curl.get(), HTTPMethod::POST, "http://localhost/api/v1/sessions/stop", rfl::json::write(stop_request));
   REQUIRE(response);
   REQUIRE_THAT(response->second, Equals("{\"success\":true}"));
+}
+
+TEST_CASE("Lobbies APIs", "[API]") {
+  auto event_bus = std::make_shared<events::EventBusType>();
+  auto running_sessions = std::make_shared<immer::atom<immer::vector<events::StreamSession>>>();
+  auto config = immer::box<state::Config>(state::load_or_default("config.test.toml", event_bus, running_sessions));
+  auto app_state = immer::box<state::AppState>(state::AppState{
+      .config = config,
+      .pairing_cache = std::make_shared<immer::atom<immer::map<std::string, state::PairCache>>>(),
+      .pairing_atom = std::make_shared<immer::atom<immer::map<std::string, immer::box<events::PairSignal>>>>(),
+      .event_bus = event_bus,
+      .lobbies = std::make_shared<immer::atom<immer::vector<events::Lobby>>>(),
+      .running_sessions = running_sessions});
+  // Start the server
+  std::thread server_thread([app_state]() { wolf::api::start_server(app_state); });
+  server_thread.detach();
+
+  // Setup the event bus handlers for the lobbies events
+  auto lobbies_handlers = sessions::setup_lobbies_handlers(app_state, "/tmp/", {});
+
+  // Wait for the server to start
+  std::this_thread::sleep_for(std::chrono::milliseconds(42));
+
+  auto curl = curl_ptr(curl_easy_init(), ::curl_easy_cleanup);
+  curl_easy_setopt(curl.get(), CURLOPT_UNIX_SOCKET_PATH, "/tmp/wolf.sock");
+  curl_easy_setopt(curl.get(), CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+
+  { // Test that the initial list of lobbies is empty
+    auto response = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/lobbies");
+    REQUIRE(response);
+    auto sessions = rfl::json::read<LobbiesResponse>(response->second).value();
+    REQUIRE(sessions.success);
+    REQUIRE(sessions.lobbies.size() == 0);
+  }
+
+  std::string lobby_id;
+  { // Test creating a lobby
+    auto new_lobby = CreateLobbyRequest{.name = "test_lobby",
+                                        .multi_user = false,
+                                        .video_settings = {.width = 1920,
+                                                           .height = 1080,
+                                                           .refresh_rate = 60,
+                                                           .runner_render_node = "runner_render_node",
+                                                           .wayland_render_node = "/dev/dri/renderD128"},
+                                        .audio_settings = {.channel_count = 2},
+                                        .runner_state_folder = "runner_state_folder",
+                                        .runner = wolf::config::AppCMD{.run_cmd = "sleep 10"}};
+    auto response =
+        req(curl.get(), HTTPMethod::POST, "http://localhost/api/v1/lobbies/create", rfl::json::write(new_lobby));
+    REQUIRE(response);
+    auto lobby_res = rfl::json::read<LobbyCreateResponse>(response->second).value();
+    REQUIRE(lobby_res.success);
+    REQUIRE(!lobby_res.lobby_id.empty());
+    lobby_id = lobby_res.lobby_id;
+    // Test that the lobby is listed in the list of lobbies
+    response = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/lobbies");
+    REQUIRE(response);
+    auto sessions = rfl::json::read<LobbiesResponse>(response->second).value();
+    REQUIRE(sessions.success);
+    REQUIRE(sessions.lobbies.size() == 1);
+    REQUIRE_THAT(sessions.lobbies[0].id, Equals(lobby_res.lobby_id));
+    REQUIRE(sessions.lobbies[0].connected_sessions.size() == 0);
+  }
+
+  std::size_t moonlight_session_id = 1234;
+  { // Test joining a lobby
+    // First, create a StreamSession
+    running_sessions->update([moonlight_session_id](const immer::vector<events::StreamSession> &sessions) {
+      return sessions.push_back(events::StreamSession{.session_id = moonlight_session_id});
+    });
+    // Then, call the join endpoint
+    auto response = req(
+        curl.get(),
+        HTTPMethod::POST,
+        "http://localhost/api/v1/lobbies/join",
+        rfl::json::write(events::JoinLobbyEvent{.lobby_id = lobby_id, .moonlight_session_id = moonlight_session_id}));
+    REQUIRE(response);
+    auto join_res = rfl::json::read<GenericSuccessResponse>(response->second).value();
+    REQUIRE(join_res.success);
+
+    // Test that the lobby now lists this session
+    response = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/lobbies");
+    REQUIRE(response);
+    auto sessions = rfl::json::read<LobbiesResponse>(response->second).value();
+    REQUIRE(sessions.success);
+    REQUIRE(sessions.lobbies.size() == 1);
+    REQUIRE_THAT(sessions.lobbies[0].id, Equals(lobby_id));
+    REQUIRE(sessions.lobbies[0].connected_sessions.size() == 1);
+    REQUIRE_THAT(sessions.lobbies[0].connected_sessions[0], Equals(std::to_string(moonlight_session_id)));
+  }
+
+  { // Test leaving a lobby
+    auto response = req(
+        curl.get(),
+        HTTPMethod::POST,
+        "http://localhost/api/v1/lobbies/leave",
+        rfl::json::write(events::LeaveLobbyEvent{.lobby_id = lobby_id, .moonlight_session_id = moonlight_session_id}));
+    REQUIRE(response);
+    auto leave_res = rfl::json::read<GenericSuccessResponse>(response->second).value();
+    REQUIRE(leave_res.success);
+    // Test that the lobby no longer lists this session
+    response = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/lobbies");
+    REQUIRE(response);
+    auto sessions = rfl::json::read<LobbiesResponse>(response->second).value();
+    REQUIRE(sessions.success);
+    REQUIRE(sessions.lobbies.size() == 1);
+    REQUIRE_THAT(sessions.lobbies[0].id, Equals(lobby_id));
+    REQUIRE(sessions.lobbies[0].connected_sessions.empty());
+  }
+
+  { // Test stopping the lobby
+    auto response = req(curl.get(),
+                        HTTPMethod::POST,
+                        "http://localhost/api/v1/lobbies/stop",
+                        rfl::json::write(events::StopLobbyEvent{.lobby_id = lobby_id}));
+    REQUIRE(response);
+    auto stop_res = rfl::json::read<GenericSuccessResponse>(response->second).value();
+    REQUIRE(stop_res.success);
+
+    // Test that the lobby no longer exists
+    response = req(curl.get(), HTTPMethod::GET, "http://localhost/api/v1/lobbies");
+    REQUIRE(response);
+    auto sessions = rfl::json::read<LobbiesResponse>(response->second).value();
+    REQUIRE(sessions.success);
+    REQUIRE(sessions.lobbies.empty());
+  }
 }
 
 struct SSEEvent {
