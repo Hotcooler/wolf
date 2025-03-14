@@ -141,6 +141,7 @@ struct AudioSettings {
 };
 
 struct CreateLobbyEvent {
+  const std::string id;
   const std::string name;
   std::optional<std::vector<short>> pin = std::nullopt;
   const bool stop_when_everyone_leaves;

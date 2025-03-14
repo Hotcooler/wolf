@@ -20,7 +20,7 @@ setup_lobbies_handlers(const immer::box<state::AppState> &app_state,
         auto ev_bus = app_state->event_bus;
 
         auto lobby = std::make_shared<events::Lobby>(
-            events::Lobby{.id = state::gen_uuid(),
+            events::Lobby{.id = lobby_settings->id,
                           .name = lobby_settings->name,
                           .pin = lobby_settings->pin,
                           .stop_when_everyone_leaves = lobby_settings->stop_when_everyone_leaves,

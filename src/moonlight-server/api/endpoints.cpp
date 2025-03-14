@@ -359,7 +359,9 @@ void UnixSocketServer::endpoint_LobbyCreate(const wolf::api::HTTPRequest &req, s
   if (event) {
     auto default_client_settings = state::ClientSettings{};
     auto client_settings = event.value().client_settings.value().value_or(PartialClientSettings{});
+    auto lobby_id = state::gen_uuid();
     auto create_lobby_ev = events::CreateLobbyEvent{
+        .id = lobby_id,
         .name = event.value().name,
         .pin = event.value().pin.get(),
         .stop_when_everyone_leaves = event.value().stop_when_everyone_leaves,
@@ -381,9 +383,7 @@ void UnixSocketServer::endpoint_LobbyCreate(const wolf::api::HTTPRequest &req, s
         .runner = state::get_runner(event.value().runner, this->state_->app_state->event_bus)};
     // Fire the event
     state_->app_state->event_bus->fire_event(immer::box<events::CreateLobbyEvent>(create_lobby_ev));
-    // Get the last inserted ID
-    immer::vector<events::Lobby> lobbies = state_->app_state->lobbies->load();
-    auto res = LobbyCreateResponse{.lobby_id = lobbies.back().id};
+    auto res = LobbyCreateResponse{.lobby_id = lobby_id};
     send_http(socket, 200, rfl::json::write(res));
   } else {
     logs::log(logs::warning, "[API] Invalid event: {} - {}", req.body, event.error().what());
