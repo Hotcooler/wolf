@@ -213,6 +213,12 @@ setup_lobbies_handlers(const immer::box<state::AppState> &app_state,
         app_state->event_bus->fire_event(immer::box<events::SwitchStreamProducerEvents>{
             events::SwitchStreamProducerEvents{.session_id = session->session_id,
                                                .interpipe_src_id = std::to_string(session->session_id)}});
+
+        if (lobby->stop_when_everyone_leaves && lobby->connected_sessions->load()->size() == 0) {
+          // Nobody left in the lobby, and it's set to stop when everyone leaves
+          app_state->event_bus->fire_event(
+              immer::box<events::StopLobbyEvent>{events::StopLobbyEvent{.lobby_id = lobby->id}});
+        }
       }));
 
   // Stopping a lobby will trigger leave for all the connected sessions
@@ -241,6 +247,12 @@ setup_lobbies_handlers(const immer::box<state::AppState> &app_state,
                  }) | //
                  ranges::to<immer::vector<events::Lobby>>();
         });
+
+        if (lobby->stop_when_everyone_leaves && lobby->connected_sessions->load()->size() == 0) {
+          // Nobody left in the lobby, and it's set to stop when everyone leaves
+          app_state->event_bus->fire_event(
+              immer::box<events::StopLobbyEvent>{events::StopLobbyEvent{.lobby_id = lobby->id}});
+        }
       }));
 
   // When a Moonlight session is being stopped we need to remove it from the lobby
