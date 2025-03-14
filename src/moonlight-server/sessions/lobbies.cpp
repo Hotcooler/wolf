@@ -22,7 +22,7 @@ setup_lobbies_handlers(const immer::box<state::AppState> &app_state,
         auto lobby = std::make_shared<events::Lobby>(
             events::Lobby{.id = state::gen_uuid(),
                           .name = lobby_settings->name,
-                          .multi_user = lobby_settings->multi_user,
+                          .pin = lobby_settings->pin,
                           .stop_when_everyone_leaves = lobby_settings->stop_when_everyone_leaves,
                           .runner = lobby_settings->runner});
         app_state->lobbies->update(
@@ -117,11 +117,6 @@ setup_lobbies_handlers(const immer::box<state::AppState> &app_state,
           return;
         }
         logs::log(logs::info, "[LOBBY] Session {} joining lobby {}", session->session_id, lobby->id);
-
-        if (lobby->multi_user && lobby->connected_sessions->load()->size() >= 1) {
-          logs::log(logs::error, "[LOBBY] Lobby {} is full", lobby->id);
-          return;
-        }
 
         // Update the lobby with the new session
         lobby->connected_sessions->update([session](const immer::vector<immer::box<std::string>> &connected_sessions) {

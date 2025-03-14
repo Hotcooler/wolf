@@ -361,7 +361,7 @@ void UnixSocketServer::endpoint_LobbyCreate(const wolf::api::HTTPRequest &req, s
     auto client_settings = event.value().client_settings.value().value_or(PartialClientSettings{});
     auto create_lobby_ev = events::CreateLobbyEvent{
         .name = event.value().name,
-        .multi_user = event.value().multi_user,
+        .pin = event.value().pin.get(),
         .stop_when_everyone_leaves = event.value().stop_when_everyone_leaves,
         .video_settings = event.value().video_settings,
         .audio_settings = event.value().audio_settings,
@@ -391,9 +391,27 @@ void UnixSocketServer::endpoint_LobbyCreate(const wolf::api::HTTPRequest &req, s
   }
 }
 
+std::optional<std::string /* Error message */> check_lobby_pin(const immer::vector<events::Lobby> &lobbies,
+                                                               std::string_view lobby_id,
+                                                               const std::optional<std::vector<short>> &pin) {
+  auto lobby = state::get_lobby_by_id(lobbies, lobby_id);
+  if (!lobby) {
+    return "Invalid lobby ID";
+  }
+  if (lobby->pin != pin) {
+    return "Invalid PIN";
+  }
+  return std::nullopt;
+}
+
 void UnixSocketServer::endpoint_LobbyJoin(const wolf::api::HTTPRequest &req, std::shared_ptr<UnixSocket> socket) {
   auto event = rfl::json::read<events::JoinLobbyEvent>(req.body);
   if (event) {
+    auto lobbies = this->state_->app_state->lobbies->load();
+    if (auto err = check_lobby_pin(lobbies.get(), event->lobby_id, event->pin)) {
+      send_http(socket, 500, rfl::json::write(GenericErrorResponse{.error = err.value()}));
+      return;
+    }
     state_->app_state->event_bus->fire_event(immer::box<events::JoinLobbyEvent>(event.value()));
     send_http(socket, 200, rfl::json::write(GenericSuccessResponse{}));
   } else {
@@ -416,6 +434,11 @@ void UnixSocketServer::endpoint_LobbyLeave(const wolf::api::HTTPRequest &req, st
 void UnixSocketServer::endpoint_LobbyStop(const wolf::api::HTTPRequest &req, std::shared_ptr<UnixSocket> socket) {
   auto event = rfl::json::read<events::StopLobbyEvent>(req.body);
   if (event) {
+    auto lobbies = this->state_->app_state->lobbies->load();
+    if (auto err = check_lobby_pin(lobbies.get(), event->lobby_id, event->pin)) {
+      send_http(socket, 500, rfl::json::write(GenericErrorResponse{.error = err.value()}));
+      return;
+    }
     state_->app_state->event_bus->fire_event(immer::box<events::StopLobbyEvent>(event.value()));
     send_http(socket, 200, rfl::json::write(GenericSuccessResponse{}));
   } else {

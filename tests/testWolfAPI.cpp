@@ -444,9 +444,10 @@ TEST_CASE("Lobbies APIs", "[API]") {
   }
 
   std::string lobby_id;
+  std::vector<short> pin = {1, 2, 3, 4};
   { // Test creating a lobby
     auto new_lobby = CreateLobbyRequest{.name = "test_lobby",
-                                        .multi_user = false,
+                                        .pin = pin,
                                         .stop_when_everyone_leaves = false,
                                         .video_settings = {.width = 1920,
                                                            .height = 1080,
@@ -486,6 +487,18 @@ TEST_CASE("Lobbies APIs", "[API]") {
         "http://localhost/api/v1/lobbies/join",
         rfl::json::write(events::JoinLobbyEvent{.lobby_id = lobby_id, .moonlight_session_id = moonlight_session_id}));
     REQUIRE(response);
+    auto error_res = rfl::json::read<GenericErrorResponse>(response->second).value();
+    // we expect this to fail since we don't pass the PIN!
+    REQUIRE(!error_res.success);
+
+    // Now call it with the right PIN
+    response = req(
+        curl.get(),
+        HTTPMethod::POST,
+        "http://localhost/api/v1/lobbies/join",
+        rfl::json::write(
+            events::JoinLobbyEvent{.lobby_id = lobby_id, .moonlight_session_id = moonlight_session_id, .pin = pin}));
+    REQUIRE(response);
     auto join_res = rfl::json::read<GenericSuccessResponse>(response->second).value();
     REQUIRE(join_res.success);
 
@@ -524,6 +537,15 @@ TEST_CASE("Lobbies APIs", "[API]") {
                         HTTPMethod::POST,
                         "http://localhost/api/v1/lobbies/stop",
                         rfl::json::write(events::StopLobbyEvent{.lobby_id = lobby_id}));
+    REQUIRE(response);
+    auto error_res = rfl::json::read<GenericSuccessResponse>(response->second).value();
+    // We expect this to fail since we don't pass a PIN!
+    REQUIRE(!error_res.success);
+    // Now try again with the PIN
+    response = req(curl.get(),
+                   HTTPMethod::POST,
+                   "http://localhost/api/v1/lobbies/stop",
+                   rfl::json::write(events::StopLobbyEvent{.lobby_id = lobby_id, .pin = pin}));
     REQUIRE(response);
     auto stop_res = rfl::json::read<GenericSuccessResponse>(response->second).value();
     REQUIRE(stop_res.success);

@@ -165,7 +165,7 @@ template <> struct Reflector<events::Lobby> {
   struct ReflType {
     std::string id;
     std::string name;
-    bool multi_user;
+    bool pin_required;
     bool stop_when_everyone_leaves;
     Reflector<events::Runner>::ReflType runner;
     std::vector<std::string> connected_sessions;
@@ -175,7 +175,7 @@ template <> struct Reflector<events::Lobby> {
     immer::vector<immer::box<std::string>> connected_sessions = v.connected_sessions->load();
     return {.id = v.id,
             .name = v.name,
-            .multi_user = v.multi_user,
+            .pin_required = v.pin.has_value(),
             .stop_when_everyone_leaves = v.stop_when_everyone_leaves,
             .runner = v.runner->serialize(),
             .connected_sessions = connected_sessions |

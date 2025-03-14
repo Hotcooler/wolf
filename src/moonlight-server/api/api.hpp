@@ -121,7 +121,10 @@ struct StreamSessionHandleInputRequest {
 
 struct CreateLobbyRequest {
   std::string name;
-  bool multi_user = true;
+  rfl::Description<"If present, the pin that is required to join the lobby."
+                   "If this is not set, then the lobby is open to everyone",
+                   std::optional<std::vector<short>>>
+      pin;
   bool stop_when_everyone_leaves = true;
 
   events::VideoSettings video_settings;

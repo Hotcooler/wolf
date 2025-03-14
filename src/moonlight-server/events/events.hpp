@@ -91,7 +91,13 @@ constexpr std::string_view MOONLIGHT_PROFILE_ID = "moonlight-profile-id";
 struct Lobby {
   const std::string id;
   const std::string name;
-  const bool multi_user;
+
+  /**
+   * The pin that is required to join the lobby
+   * If this is not set, then the lobby is open to everyone
+   */
+  std::optional<std::vector<short>> pin;
+
   const bool stop_when_everyone_leaves;
   /**
    * The app that is currently running in the lobby
@@ -136,7 +142,7 @@ struct AudioSettings {
 
 struct CreateLobbyEvent {
   const std::string name;
-  const bool multi_user;
+  std::optional<std::vector<short>> pin = std::nullopt;
   const bool stop_when_everyone_leaves;
 
   const VideoSettings video_settings;
@@ -154,6 +160,7 @@ struct CreateLobbyEvent {
 struct JoinLobbyEvent {
   const std::string lobby_id;
   const std::size_t moonlight_session_id;
+  std::optional<std::vector<short>> pin = std::nullopt;
 };
 
 struct LeaveLobbyEvent {
@@ -163,6 +170,7 @@ struct LeaveLobbyEvent {
 
 struct StopLobbyEvent {
   const std::string lobby_id;
+  std::optional<std::vector<short>> pin = std::nullopt;
 };
 
 using MouseTypes = std::variant<input::Mouse, virtual_display::WaylandMouse>;
