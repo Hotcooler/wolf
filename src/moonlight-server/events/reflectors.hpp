@@ -184,4 +184,17 @@ template <> struct Reflector<events::Lobby> {
   }
 };
 
+/**
+ * Unsigned long is used by Moonlight as the session ID but JSON doesn't support unsigned integers.
+ */
+template <> struct Reflector<std::size_t> {
+  using ReflType = std::string;
+  static ReflType from(const std::size_t &v) {
+    return std::to_string(v);
+  }
+  static std::size_t to(const ReflType &v) {
+    return std::stoull(v);
+  }
+};
+
 } // namespace rfl

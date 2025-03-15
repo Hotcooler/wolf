@@ -481,11 +481,9 @@ TEST_CASE("Lobbies APIs", "[API]") {
       return sessions.push_back(events::StreamSession{.session_id = moonlight_session_id});
     });
     // Then, call the join endpoint
-    auto response = req(
-        curl.get(),
-        HTTPMethod::POST,
-        "http://localhost/api/v1/lobbies/join",
-        rfl::json::write(events::JoinLobbyEvent{.lobby_id = lobby_id, .moonlight_session_id = moonlight_session_id}));
+    auto payload =
+        rfl::json::write(events::JoinLobbyEvent{.lobby_id = lobby_id, .moonlight_session_id = moonlight_session_id});
+    auto response = req(curl.get(), HTTPMethod::POST, "http://localhost/api/v1/lobbies/join", payload);
     REQUIRE(response);
     auto error_res = rfl::json::read<GenericErrorResponse>(response->second).value();
     // we expect this to fail since we don't pass the PIN!
@@ -622,5 +620,5 @@ TEST_CASE("SSE APIs", "[API]") {
   auto event = queue->pop();
   REQUIRE(event.has_value());
   REQUIRE_THAT(event->event, Equals("wolf::core::events::IDRRequestEvent"));
-  REQUIRE_THAT(event->data, Equals("{\"session_id\":42}"));
+  REQUIRE_THAT(event->data, Equals("{\"session_id\":\"42\"}"));
 }
