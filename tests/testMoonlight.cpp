@@ -38,9 +38,14 @@ TEST_CASE("LocalState load TOML", "[LocalState]") {
     REQUIRE_THAT(first_app->base.title, Equals("Firefox"));
     REQUIRE_THAT(first_app->base.id, Equals("304556286"));
     REQUIRE_THAT(first_app->base.icon_png_path.value(), Equals("firefox.png"));
-    REQUIRE_THAT(first_app->h264_gst_pipeline, Equals("video_source !\ndefault !\nh264_pipeline !\nvideo_sink"));
-    REQUIRE_THAT(first_app->hevc_gst_pipeline, Equals("video_source !\ndefault !\nhevc_pipeline !\nvideo_sink"));
-    REQUIRE_THAT(first_app->av1_gst_pipeline, Equals("video_source !\nparams !\nav1_pipeline !\nvideo_sink"));
+    auto default_video_source = "interpipesrc name=interpipesrc_{session_id}_video listen-to={session_id}_video "
+                                "is-live=true stream-sync=restart-ts max-buffers=1 block=false";
+    REQUIRE_THAT(first_app->h264_gst_pipeline,
+                 Equals(fmt::format("{} !\ndefault !\nh264_pipeline !\nvideo_sink", default_video_source)));
+    REQUIRE_THAT(first_app->hevc_gst_pipeline,
+                 Equals(fmt::format("{} !\ndefault !\nhevc_pipeline !\nvideo_sink", default_video_source)));
+    REQUIRE_THAT(first_app->av1_gst_pipeline,
+                 Equals(fmt::format("{} !\nparams !\nav1_pipeline !\nvideo_sink", default_video_source)));
     REQUIRE(first_app->start_virtual_compositor);
     REQUIRE(first_app->render_node == "/dev/dri/renderD128");
     auto first_app_runner = rfl::get<AppDocker>(first_app->runner->serialize().variant());
