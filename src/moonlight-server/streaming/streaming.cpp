@@ -237,7 +237,8 @@ void start_streaming_video(const immer::box<events::VideoSession> &video_session
                       sess_id,
                       switch_ev->interpipe_src_id);
             /* Grab a reference to the interpipesrc */
-            if (auto src = gst_bin_get_by_name(GST_BIN(pipeline.get()), "interpipesrc")) {
+            auto pipe_name = fmt::format("interpipesrc_{}_video", switch_ev->session_id);
+            if (auto src = gst_bin_get_by_name(GST_BIN(pipeline.get()), pipe_name.c_str())) {
               /* Perform the switch */
               auto video_interpipe = fmt::format("{}_video", switch_ev->interpipe_src_id);
               g_object_set(src, "listen-to", video_interpipe.c_str(), nullptr);
@@ -321,7 +322,8 @@ void start_streaming_audio(const immer::box<events::AudioSession> &audio_session
                       session_id,
                       switch_ev->interpipe_src_id);
 
-            if (auto src = gst_bin_get_by_name(GST_BIN(pipeline.get()), "interpipesrc")) {
+            auto pipe_name = fmt::format("interpipesrc_{}_audio", switch_ev->interpipe_src_id);
+            if (auto src = gst_bin_get_by_name(GST_BIN(pipeline.get()), pipe_name.c_str())) {
               /* Perform the switch */
               auto audio_interpipe = fmt::format("{}_audio", switch_ev->interpipe_src_id);
               g_object_set(src, "listen-to", audio_interpipe.c_str(), nullptr);

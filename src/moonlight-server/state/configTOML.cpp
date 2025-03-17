@@ -287,8 +287,8 @@ Config load_or_default(const std::string &source,
   if (default_gst_video_settings.default_source.find("appsrc") != std::string::npos ||
       default_gst_video_settings.default_source.find("name=interpipesrc") == std::string::npos) {
     logs::log(logs::debug, "Found outdated default_source, migrating to interpipesrc");
-    default_gst_video_settings.default_source =
-        "interpipesrc name=interpipesrc listen-to={session_id}_video is-live=true "
+    cfg.gstreamer.video.default_source =
+        "interpipesrc name=interpipesrc_{session_id}_video listen-to={session_id}_video is-live=true "
         "stream-sync=restart-ts max-buffers=1 block=false";
   }
 
@@ -296,8 +296,8 @@ Config load_or_default(const std::string &source,
   if (default_gst_audio_settings.default_source.find("appsrc") != std::string::npos ||
       default_gst_audio_settings.default_source.find("name=interpipesrc") == std::string::npos) {
     logs::log(logs::debug, "Found outdated default_source, migrating to interpipesrc");
-    default_gst_audio_settings.default_source =
-        "interpipesrc name=interpipesrc listen-to={session_id}_audio is-live=true "
+    cfg.gstreamer.audio.default_source =
+        "interpipesrc name=interpipesrc_{session_id}_audio listen-to={session_id}_audio is-live=true "
         "stream-sync=restart-ts max-bytes=0 max-buffers=3 block=false";
   }
 
