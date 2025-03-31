@@ -14,6 +14,8 @@ on:
 
 jobs:
   test-arm:
+    # Avoid workflows to run twice for PRs (https://github.com/orgs/community/discussions/57827)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     timeout-minutes: 30
     runs-on: [ self-hosted, ARM64 ] # self-hosted, using Oracle free tier instance
     steps:
@@ -68,7 +70,6 @@ jobs:
                 -DCMAKE_CXX_EXTENSIONS=OFF \
                 -DTEST_VIRTUAL_INPUT=OFF \
                 -DTEST_DOCKER=ON \
-                -DTEST_RUST_WAYLAND=ON \
                 -DTEST_NVIDIA=OFF \
                 -DTEST_EXCEPTIONS=OFF \
                 -DTEST_UHID=OFF \
@@ -97,6 +98,7 @@ jobs:
 
   # First build the common dependencies: Rust-based libgstwaylanddisplay
   build-gst-wayland:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-24.04
     steps:
       - name: Prepare environment
@@ -131,6 +133,7 @@ jobs:
           if-no-files-found: error
 
   test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
     runs-on: ubuntu-24.04
     needs: build-gst-wayland
     strategy:
@@ -201,8 +204,7 @@ jobs:
                 -DCATCH_DEVELOPMENT_BUILD=ON \
                 -DTEST_VIRTUAL_INPUT=OFF \
                 -DTEST_DOCKER=OFF \
-                -DLINK_RUST_WAYLAND=ON \
-                -DTEST_RUST_WAYLAND=OFF \
+                -DLINK_RUST_WAYLAND=OFF \
                 -DTEST_NVIDIA=OFF \
                 -DTEST_SDL=OFF \
                 -G Ninja

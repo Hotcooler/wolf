@@ -1,114 +1,81 @@
 #include <control/control.hpp>
-#include <functional>
+#include <gstreamer-1.0/gst/video/video-info.h>
 #include <immer/array.hpp>
-#include <immer/array_transient.hpp>
 #include <immer/box.hpp>
 #include <memory>
 #include <streaming/streaming.hpp>
 
 namespace streaming {
 
-namespace custom_src {
-
-std::shared_ptr<GstAppDataState> setup_app_src(const wolf::core::virtual_display::DisplayMode &video_session,
-                                               wolf::core::virtual_display::wl_state_ptr wl_ptr) {
-  return std::shared_ptr<GstAppDataState>(new GstAppDataState{.wayland_state = std::move(wl_ptr),
-                                                              .source = nullptr,
-                                                              .framerate = video_session.refreshRate},
-                                          [](const auto &app_data_state) {
-                                            logs::log(logs::trace, "~GstAppDataState");
-                                            if (app_data_state->source) {
-                                              g_source_destroy(app_data_state->source);
-                                              app_data_state->source = nullptr;
-                                            }
-                                            delete app_data_state;
-                                          });
-}
-
-bool push_data(GstAppDataState *data) {
-  GstFlowReturn ret;
-
-  if (data->wayland_state) {
-    auto buffer = get_frame(*data->wayland_state);
-    /**
-     * get_frame() will internally sleep until vsync or a new frame is available.
-     * we have to make sure that the pipeline is still running or we might access some invalid pointer
-     **/
-    if (GST_IS_BUFFER(buffer) && data->source && GST_IS_APP_SRC(data->app_src.get())) {
-
-      GST_BUFFER_PTS(buffer) = data->timestamp;
-      GST_BUFFER_DTS(buffer) = data->timestamp;
-      GST_BUFFER_DURATION(buffer) = gst_util_uint64_scale_int(1, GST_SECOND, data->framerate);
-      data->timestamp += GST_BUFFER_DURATION(buffer);
-
-      // gst_app_src_push_buffer takes ownership of the buffer
-      ret = gst_app_src_push_buffer(GST_APP_SRC(data->app_src.get()), buffer);
-      if (ret == GST_FLOW_OK) {
-        return true;
-      }
-    } else {
-      gst_buffer_unref(buffer);
-    }
-  }
-
-  logs::log(logs::debug, "[WAYLAND] Error during app-src push data");
-  return false;
-}
-
-void app_src_need_data(GstElement *pipeline, guint size, GstAppDataState *data) {
-  if (!data->source) {
-    logs::log(logs::debug, "[WAYLAND] Start feeding app-src");
-    data->source = g_idle_source_new();
-    g_source_attach(data->source, data->context);
-    g_source_set_callback(data->source, (GSourceFunc)push_data, data, NULL);
-  }
-}
-
-void app_src_enough_data(GstElement *pipeline, guint size, GstAppDataState *data) {
-  if (data->source) {
-    logs::log(logs::trace, "app_src_enough_data");
-    g_source_destroy(data->source);
-    data->source = nullptr;
-  }
-}
-} // namespace custom_src
-
 using namespace wolf::core::gstreamer;
 using namespace wolf::core;
 
-void start_video_producer(std::size_t session_id,
-                          wolf::core::virtual_display::wl_state_ptr wl_state,
-                          const wolf::core::virtual_display::DisplayMode &display_mode,
-                          const std::shared_ptr<events::EventBusType> &event_bus) {
-  auto appsrc_state = streaming::custom_src::setup_app_src(display_mode, std::move(wl_state));
-  auto pipeline = fmt::format("appsrc is-live=true name=wolf_wayland_source ! " //
-                              "queue leaky=downstream max-size-buffers=1 ! "    //
-                              "interpipesink name={}_video max-buffers=1",      //
-                              session_id);
-  logs::log(logs::debug, "[GSTREAMER] Starting video producer: {}", pipeline);
-  run_pipeline(pipeline, [=](auto pipeline, auto loop) {
-    if (auto app_src_el = gst_bin_get_by_name(GST_BIN(pipeline.get()), "wolf_wayland_source")) {
-      appsrc_state->context = g_main_context_get_thread_default();
-      logs::log(logs::debug, "Setting up wolf_wayland_source");
-      g_assert(GST_IS_APP_SRC(app_src_el));
+struct GstBusData {
+  std::shared_ptr<boost::promise<WaylandDisplayReady>> on_ready;
+  gst_element_ptr wayland_plugin;
+};
 
-      auto app_src_ptr = wolf::core::gstreamer::gst_element_ptr(app_src_el, ::gst_object_unref);
+gboolean structure_each(GQuark field_id, const GValue *value, gpointer user_data) {
+  auto field_str = std::string(g_quark_to_string(field_id));
+  if (!G_VALUE_HOLDS_STRING(value)) {
+    logs::log(logs::warning, "Wayland source message: {} = {}", field_str, "not a string");
+    return FALSE;
+  }
+  auto value_str = g_value_get_string(value);
+  logs::log(logs::debug, "Wayland source message: {} = {}", field_str, value_str);
 
-      auto caps = set_resolution(*appsrc_state->wayland_state, display_mode, app_src_ptr);
-      g_object_set(app_src_ptr.get(), "caps", caps.get(), NULL);
+  if (field_str == "WAYLAND_DISPLAY") {
+    logs::log(logs::info, "Wayland display ready, listening on: {}", value_str);
+    auto bus_data = static_cast<GstBusData *>(user_data);
+    bus_data->on_ready->set_value(
+        WaylandDisplayReady{.wayland_socket_name = value_str, .wayland_plugin = bus_data->wayland_plugin});
+  }
 
-      /* Adapted from the tutorial at:
-       * https://gstreamer.freedesktop.org/documentation/tutorials/basic/short-cutting-the-pipeline.html?gi-language=c*/
-      g_signal_connect(app_src_el,
-                       "need-data",
-                       G_CALLBACK(streaming::custom_src::app_src_need_data),
-                       appsrc_state.get());
-      g_signal_connect(app_src_el,
-                       "enough-data",
-                       G_CALLBACK(streaming::custom_src::app_src_enough_data),
-                       appsrc_state.get());
-      appsrc_state->app_src = std::move(app_src_ptr);
+  return TRUE;
+}
+
+gboolean bus_watcher(GstBus *bus, GstMessage *msg, gpointer data) {
+  switch (GST_MESSAGE_TYPE(msg)) {
+  case GST_MESSAGE_APPLICATION: {
+    auto structure = gst_message_get_structure(msg);
+    if (gst_structure_has_name(structure, "wayland.src")) {
+      gst_structure_foreach(structure, structure_each, data);
     }
+  }
+  }
+  return TRUE;
+}
+
+void start_video_producer(std::size_t session_id,
+                          const std::string &render_node,
+                          const virtual_display::DisplayMode &display_mode,
+                          std::shared_ptr<boost::promise<WaylandDisplayReady>> on_ready,
+                          std::shared_ptr<events::EventBusType> event_bus) {
+  bool use_zero_copy = utils::get_env("WOLF_USE_ZERO_COPY") != nullptr;
+  auto pipeline = fmt::format(
+      "waylanddisplaysrc name=wolf_wayland_source render_node={render_node} ! "
+      "{buffer_format}, width={width}, height={height}, framerate={fps}/1 ! "                  //
+      "queue leaky=downstream max-size-buffers=1 ! "                                                                               //
+      "interpipesink name={session_id}_video sync=true async=false max-buffers=1", //
+      fmt::arg("buffer_format", use_zero_copy ? "video/x-raw(memory:DMABuf)" : "video/x-raw"),
+      fmt::arg("render_node", render_node),
+      fmt::arg("session_id", session_id),
+      fmt::arg("width", display_mode.width),
+      fmt::arg("height", display_mode.height),
+      fmt::arg("fps", display_mode.refreshRate));
+  logs::log(logs::debug, "[GSTREAMER] Starting video producer: {}", pipeline);
+  auto bus_data_ptr =
+      std::make_shared<GstBusData>(GstBusData{.on_ready = std::move(on_ready), .wayland_plugin = nullptr});
+  run_pipeline(pipeline, [=](auto pipeline, auto loop) {
+    logs::log(logs::debug, "Setting up waylanddisplaysrc");
+
+    auto wayland_plugin_el = gst_bin_get_by_name(GST_BIN(pipeline.get()), "wolf_wayland_source");
+    auto wayland_plugin_ptr = gstreamer::gst_element_ptr(wayland_plugin_el, ::gst_object_unref);
+    bus_data_ptr->wayland_plugin.swap(wayland_plugin_ptr);
+
+    auto bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline.get()));
+    gst_bus_add_watch(bus, bus_watcher, bus_data_ptr.get());
+    gst_object_unref(bus);
 
     // TODO: pause and resume? Should we do it?
 
@@ -129,14 +96,15 @@ void start_audio_producer(std::size_t session_id,
                           int channel_count,
                           const std::string &sink_name,
                           const std::string &server_name) {
-  auto pipeline = fmt::format("pulsesrc device=\"{sink_name}\" server=\"{server_name}\" ! " //
-                              "audio/x-raw, channels={channels}, rate=48000 ! "             //
-                              "queue leaky=downstream max-size-buffers=3 ! "                //
-                              "interpipesink name=\"{session_id}_audio\" sync=true async=false max-buffers=3",
-                              fmt::arg("session_id", session_id),
-                              fmt::arg("channels", channel_count),
-                              fmt::arg("sink_name", sink_name),
-                              fmt::arg("server_name", server_name));
+  auto pipeline = fmt::format(
+      "pulsesrc device=\"{sink_name}\" server=\"{server_name}\" ! " //
+      "audio/x-raw, channels={channels}, rate=48000 ! "             //
+      "queue leaky=downstream max-size-buffers=3 ! "                                                    //
+      "interpipesink name=\"{session_id}_audio\" sync=true async=false max-buffers=3",
+      fmt::arg("session_id", session_id),
+      fmt::arg("channels", channel_count),
+      fmt::arg("sink_name", sink_name),
+      fmt::arg("server_name", server_name));
   logs::log(logs::debug, "[GSTREAMER] Starting audio producer: {}", pipeline);
 
   run_pipeline(pipeline, [=](auto pipeline, auto loop) {

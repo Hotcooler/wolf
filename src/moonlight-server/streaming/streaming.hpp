@@ -4,13 +4,11 @@
 #include <core/gstreamer.hpp>
 #include <core/virtual-display.hpp>
 #include <events/events.hpp>
-#include <fmt/core.h>
 #include <fmt/format.h>
 #include <gst-plugin/gstrtpmoonlightpay_audio.hpp>
 #include <gst-plugin/gstrtpmoonlightpay_video.hpp>
 #include <gst-plugin/video.hpp>
 #include <gst/gst.h>
-#include <gstreamer-1.0/gst/app/gstappsink.h>
 #include <gstreamer-1.0/gst/app/gstappsrc.h>
 #include <immer/box.hpp>
 #include <memory>
@@ -19,10 +17,23 @@ namespace streaming {
 
 using namespace wolf::core;
 
+struct WaylandDisplayReady {
+  /**
+   * The name of the wayland socket that our custom compositor is listening on
+   */
+  std::string wayland_socket_name;
+  /**
+   * The wayland plugin element,
+   * we need a reference so that we can send events directly to it (mouse, keyboard, ...)
+   */
+  gstreamer::gst_element_ptr wayland_plugin;
+};
+
 void start_video_producer(std::size_t session_id,
-                          wolf::core::virtual_display::wl_state_ptr wl_state,
+                          const std::string &render_node,
                           const wolf::core::virtual_display::DisplayMode &display_mode,
-                          const std::shared_ptr<events::EventBusType> &event_bus);
+                          std::shared_ptr<boost::promise<WaylandDisplayReady>> on_ready,
+                          std::shared_ptr<events::EventBusType> event_bus);
 
 void start_audio_producer(std::size_t session_id,
                           const std::shared_ptr<events::EventBusType> &event_bus,
@@ -40,24 +51,60 @@ void start_streaming_audio(const immer::box<events::AudioSession> &audio_session
                            const std::string &sink_name,
                            const std::string &server_name);
 
-namespace custom_src {
+static bool run_pipeline(
+    const std::string &pipeline_desc,
+    const std::function<immer::array<immer::box<events::EventBusHandlers>>(
+        gstreamer::gst_element_ptr /* pipeline */, gstreamer::gst_main_loop_ptr /* main_loop */)> &on_pipeline_ready) {
+  GError *error = nullptr;
+  gstreamer::gst_element_ptr pipeline(gst_parse_launch(pipeline_desc.c_str(), &error), [](const auto &pipeline) {
+    logs::log(logs::trace, "~pipeline");
+    gst_object_unref(pipeline);
+  });
 
-struct GstAppDataState {
-  wolf::core::gstreamer::gst_element_ptr app_src;
-  wolf::core::virtual_display::wl_state_ptr wayland_state;
-  GMainContext *context;
-  GSource *source;
-  int framerate;
-  GstClockTime timestamp = 0;
-};
+  if (!pipeline) {
+    logs::log(logs::error, "[GSTREAMER] Pipeline parse error: {}", error->message);
+    g_error_free(error);
+    return false;
+  } else if (error) { // Please note that you might get a return value that is not NULL even though the error is set. In
+                      // this case there was a recoverable parsing error and you can try to play the pipeline.
+    logs::log(logs::warning, "[GSTREAMER] Pipeline parse error (recovered): {}", error->message);
+    g_error_free(error);
+  }
 
-std::shared_ptr<GstAppDataState> setup_app_src(const wolf::core::virtual_display::DisplayMode &video_session,
-                                               wolf::core::virtual_display::wl_state_ptr wl_ptr);
+  gstreamer::gst_main_context_ptr context = {g_main_context_new(), ::g_main_context_unref};
+  g_main_context_push_thread_default(context.get());
+  gstreamer::gst_main_loop_ptr loop(g_main_loop_new(context.get(), FALSE), ::g_main_loop_unref);
 
-bool push_data(GstAppDataState *data);
-void app_src_need_data(GstElement *pipeline, guint size, GstAppDataState *data);
-void app_src_enough_data(GstElement *pipeline, guint size, GstAppDataState *data);
-} // namespace custom_src
+  /* Let the calling thread set extra things */
+  auto handlers = on_pipeline_ready(pipeline, loop);
+
+  /*
+   * adds a watch for new message on our pipeline's message bus to
+   * the default GLib main context, which is the main context that our
+   * GLib main loop is attached to below
+   */
+  auto bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline.get()));
+  gst_bus_add_signal_watch(bus);
+  g_signal_connect(bus, "message::error", G_CALLBACK(gstreamer::pipeline_error_handler), loop.get());
+  g_signal_connect(bus, "message::eos", G_CALLBACK(gstreamer::pipeline_eos_handler), loop.get());
+  gst_object_unref(bus);
+
+  /* Set the pipeline to "playing" state*/
+  gst_element_set_state(pipeline.get(), GST_STATE_PLAYING);
+  GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(reinterpret_cast<GstBin *>(pipeline.get()),
+                                    GST_DEBUG_GRAPH_SHOW_ALL,
+                                    "pipeline-start");
+
+  /* The main loop will be run until someone calls g_main_loop_quit() */
+  g_main_loop_run(loop.get());
+
+  /* Out of the main loop, clean up nicely */
+  gst_element_set_state(pipeline.get(), GST_STATE_PAUSED);
+  gst_element_set_state(pipeline.get(), GST_STATE_READY);
+  gst_element_set_state(pipeline.get(), GST_STATE_NULL);
+
+  return true;
+}
 
 /**
  * @return the Gstreamer version we are linked to

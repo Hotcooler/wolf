@@ -24,8 +24,7 @@ set(SRC_LIST
         testWolfAPI.cpp)
 
 if (UNIX AND NOT APPLE)
-    option(TEST_RUST_WAYLAND "Enable custom wayland test" ON)
-    if (TEST_RUST_WAYLAND)
+    if (LINK_RUST_WAYLAND)
         find_package(PkgConfig)
         pkg_check_modules(wayland-client REQUIRED IMPORTED_TARGET wayland-client)
 

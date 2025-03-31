@@ -161,6 +161,16 @@ Config load_or_default(const std::string &source,
     update_leaky_queue(default_gst_encoder_settings["qsv"].video_params);
   }
 
+  bool use_zero_copy = utils::get_env("WOLF_USE_ZERO_COPY") != nullptr;
+  if (use_zero_copy) {
+    default_gst_encoder_settings["nvcodec"].video_params =
+        "queue ! "
+        "glupload ! "
+        "glcolorconvert ! "
+        "video/x-raw(memory:GLMemory), width={width}, height={height}, chroma-site={color_range}, "
+        "colorimetry={color_space}, pixel-aspect-ratio=1/1";
+  }
+
   auto default_app_render_node = utils::get_env("WOLF_RENDER_NODE", "/dev/dri/renderD128");
   auto default_gst_render_node = utils::get_env("WOLF_ENCODER_NODE", default_app_render_node);
   auto vendor = get_vendor(default_gst_render_node);
